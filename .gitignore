@@ -39,3 +39,14 @@ yarn-error.*
 # generated native folders
 /ios
 /android
+
+# Local secrets
+.env
+
+# Built app binaries — but the one served by the download site must ship
+*.apk
+*.aab
+!site/*.apk
+
+# Build output
+/dist

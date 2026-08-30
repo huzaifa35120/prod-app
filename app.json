@@ -1,17 +1,20 @@
 {
   "expo": {
-    "name": "challenge-app-tmp",
-    "slug": "challenge-app-tmp",
+    "name": "Challenge App",
+    "slug": "challenge-app",
+    "scheme": "challengeapp",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "userInterfaceStyle": "light",
+    "userInterfaceStyle": "dark",
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.challengeapp.mobile"
     },
     "android": {
+      "package": "com.challengeapp.mobile",
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
+        "backgroundColor": "#07090E",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
@@ -19,7 +22,28 @@
       "predictiveBackGestureEnabled": false
     },
     "web": {
-      "favicon": "./assets/favicon.png"
-    }
+      "favicon": "./assets/favicon.png",
+      "bundler": "metro"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-system-ui",
+      [
+        "expo-status-bar",
+        {
+          "style": "light"
+        }
+      ],
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 180,
+          "resizeMode": "contain",
+          "backgroundColor": "#07090E"
+        }
+      ]
+    ],
+    "backgroundColor": "#07090E"
   }
 }
