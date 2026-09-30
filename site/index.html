@@ -8,19 +8,18 @@
 <meta property="og:title" content="Challenge App" />
 <meta property="og:description" content="Pick a number of days, race a friend on daily tasks and focused time." />
 <meta property="og:type" content="website" />
-<meta name="theme-color" content="#07090E" />
+<meta name="theme-color" content="#0A0A0B" />
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
   :root{
-    --bg:#07090E; --bg-soft:#0B0F17; --surface:#111725; --surface-hi:#18202F; --surface-max:#1F293A;
-    --border:#1E2736; --border-hi:#2C3849;
-    --text:#F3F6FB; --dim:#9CAABF; --faint:#61708A;
-    --blue:#7C93FF; --violet:#C084FC; --green:#34D399; --amber:#FBBF24;
-    --grad:linear-gradient(135deg,#6D8BFF,#8B5CF6);
-    --display:'Space Grotesk',system-ui,sans-serif;
-    --body:'Inter',system-ui,-apple-system,sans-serif;
+    --bg:#0A0A0B; --surface:#121213; --surface-hi:#19191B; --surface-max:#232326;
+    --line:#232326;
+    --text:#F7F7F5; --dim:#9A9A96; --faint:#63635F;
+    --accent:#CCFF00; --accent-ink:#0A0A0B; --rival:#FF4D00;
+    --display:'Archivo',system-ui,sans-serif;
+    --body:'IBM Plex Sans',system-ui,-apple-system,sans-serif;
   }
   *{box-sizing:border-box;margin:0;padding:0}
   html{scroll-behavior:smooth}
@@ -35,47 +34,47 @@
   .hero::before{
     content:'';position:absolute;top:-320px;left:50%;transform:translateX(-50%);
     width:900px;height:640px;border-radius:50%;
-    background:radial-gradient(closest-side,rgba(109,139,255,.20),transparent 70%);
+    background:radial-gradient(closest-side,rgba(204,255,0,.07),transparent 70%);
     pointer-events:none;
   }
   .hero-inner{position:relative;display:grid;grid-template-columns:1.05fr .95fr;gap:56px;align-items:center}
   .mark{
-    width:64px;height:64px;border-radius:19px;background:var(--grad);
-    display:grid;place-items:center;font-size:30px;margin-bottom:26px;
-    box-shadow:0 14px 40px rgba(124,92,255,.42);
+    width:60px;height:60px;border-radius:8px;background:var(--accent);
+    display:grid;place-items:center;margin-bottom:26px;font-family:var(--display);font-weight:800;font-size:34px;color:var(--accent-ink);
+    
   }
-  h1{font-family:var(--display);font-size:clamp(2.4rem,5.4vw,3.5rem);line-height:1.06;letter-spacing:-.035em;margin-bottom:18px}
-  h1 .accent{background:var(--grad);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+  h1{font-family:var(--display);font-weight:800;text-transform:uppercase;font-size:clamp(2.3rem,5.6vw,3.6rem);line-height:1;letter-spacing:-.04em;margin-bottom:20px}
+  h1 .accent{color:var(--accent)}
   .lede{font-size:1.1rem;color:var(--dim);max-width:34rem;margin-bottom:34px}
 
   .cta-row{display:flex;gap:14px;flex-wrap:wrap;align-items:center}
   .btn{
-    display:inline-flex;align-items:center;gap:11px;padding:15px 26px;border-radius:14px;
+    display:inline-flex;align-items:center;gap:11px;padding:15px 26px;border-radius:10px;
     font-weight:600;font-size:1rem;text-decoration:none;border:1px solid transparent;transition:.18s ease;
   }
-  .btn-primary{background:var(--grad);color:#050A18;box-shadow:0 10px 32px rgba(124,92,255,.36)}
-  .btn-primary:hover{transform:translateY(-2px);box-shadow:0 16px 40px rgba(124,92,255,.5)}
-  .btn-ghost{background:var(--surface-hi);border-color:var(--border-hi);color:var(--text)}
+  .btn-primary{background:var(--accent);color:var(--accent-ink)}
+  .btn-primary:hover{opacity:.88}
+  .btn-ghost{background:var(--surface-hi);border-color:var(--line);color:var(--text)}
   .btn-ghost:hover{background:var(--surface-max);border-color:var(--faint)}
   .meta{margin-top:16px;font-size:.83rem;color:var(--faint)}
   .meta b{color:var(--dim);font-weight:600}
 
   /* ---------- phone ---------- */
   .phone{
-    justify-self:center;width:290px;border-radius:40px;padding:11px;
-    background:linear-gradient(160deg,#242E42,#0D1220);
+    justify-self:center;width:290px;border-radius:28px;padding:10px;
+    background:var(--surface-max);
     box-shadow:0 40px 90px rgba(0,0,0,.65),0 0 0 1px rgba(255,255,255,.05);
   }
-  .screen{background:var(--bg-soft);border-radius:31px;padding:22px 17px;overflow:hidden}
+  .screen{background:var(--surface);border-radius:10px;padding:22px 17px;overflow:hidden}
   .notch{width:78px;height:5px;border-radius:3px;background:#0A0E16;margin:0 auto 18px}
   .s-eyebrow{font-size:9px;letter-spacing:.14em;color:var(--faint);font-weight:700;text-transform:uppercase;margin-bottom:11px}
-  .board{background:var(--surface);border:1px solid var(--border);border-radius:17px;padding:14px;margin-bottom:16px}
+  .board{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px;margin-bottom:16px}
   .board-top{display:flex;justify-content:space-between;font-size:9px;color:var(--faint);letter-spacing:.1em;font-weight:700;margin-bottom:13px}
   .vs{display:flex;align-items:flex-start;justify-content:space-between}
   .p{flex:1}
   .p .av{width:32px;height:32px;border-radius:50%;display:grid;place-items:center;font-family:var(--display);font-weight:700;font-size:11px;margin-bottom:6px}
-  .av-b{background:rgba(124,147,255,.14);border:1.5px solid var(--blue);color:var(--blue)}
-  .av-v{background:rgba(192,132,252,.14);border:1.5px solid var(--violet);color:var(--violet)}
+  .av-b{border:1px solid var(--accent);color:var(--accent);border-radius:4px}
+  .av-v{border:1px solid var(--rival);color:var(--rival);border-radius:4px}
   .p .nm{font-size:10px;font-weight:600;margin-bottom:3px}
   .p .tm{font-family:var(--display);font-size:17px;font-weight:700;letter-spacing:-.02em}
   .p .sub{font-size:8.5px;color:var(--faint);margin-top:2px}
@@ -85,43 +84,43 @@
   .split{display:flex;height:6px;border-radius:99px;overflow:hidden;margin-top:13px;background:var(--surface-max)}
   .split i{display:block;height:100%}
   .grid{display:grid;grid-template-columns:repeat(5,1fr);gap:6px}
-  .d{aspect-ratio:1;border-radius:10px;display:grid;place-content:center;font-family:var(--display);font-weight:700;font-size:12px;border:1px solid var(--border);background:var(--surface);color:var(--dim);position:relative}
+  .d{aspect-ratio:1;border-radius:10px;display:grid;place-content:center;font-family:var(--display);font-weight:700;font-size:12px;border:1px solid var(--line);background:var(--surface);color:var(--dim);position:relative}
   .d small{display:block;font-family:var(--body);font-size:7px;font-weight:500;color:var(--faint);text-align:center;margin-top:1px}
-  .d.done{background:linear-gradient(135deg,#34D399,#0EA47A);border-color:transparent;color:#04140D}
-  .d.done small{color:rgba(4,20,13,.62)}
-  .d.part{background:rgba(251,191,36,.1);border-color:#8A6410;color:var(--amber)}
-  .d.today{border:2px solid var(--blue);background:rgba(124,147,255,.1);color:var(--blue)}
+  .d.done{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+  .d.done small{color:rgba(10,10,11,.6)}
+  .d.part{border-color:var(--dim);color:var(--text)}
+  .d.today{border:1.5px solid var(--accent);color:var(--accent)}
   .d.future{background:transparent;border-style:dashed;color:#3D4A5E;opacity:.6}
-  .d .pip{position:absolute;top:3px;right:3px;width:5px;height:5px;border-radius:50%;background:var(--violet)}
+  .d .pip{position:absolute;left:0;right:0;bottom:0;height:3px;background:var(--rival)}
 
   /* ---------- sections ---------- */
-  section{padding:76px 0;border-top:1px solid var(--border)}
-  h2{font-family:var(--display);font-size:1.85rem;letter-spacing:-.025em;margin-bottom:12px}
+  section{padding:76px 0;border-top:1px solid var(--line)}
+  h2{font-family:var(--display);font-weight:800;text-transform:uppercase;font-size:1.6rem;letter-spacing:-.03em;margin-bottom:12px}
   .sec-lede{color:var(--dim);margin-bottom:40px;max-width:44rem}
   .features{display:grid;grid-template-columns:repeat(auto-fit,minmax(255px,1fr));gap:18px}
-  .card{background:var(--surface);border:1px solid var(--border);border-radius:19px;padding:26px;transition:.18s ease}
-  .card:hover{border-color:var(--border-hi);transform:translateY(-3px)}
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:26px;transition:.18s ease}
+  .card:hover{border-color:var(--line);transform:translateY(-3px)}
   .card .ico{width:42px;height:42px;border-radius:12px;background:var(--surface-max);display:grid;place-items:center;font-size:19px;margin-bottom:16px}
-  .card h3{font-family:var(--display);font-size:1.02rem;margin-bottom:8px;letter-spacing:-.01em}
+  .card h3{font-family:var(--display);font-weight:700;font-size:1rem;margin-bottom:8px;letter-spacing:-.015em}
   .card p{font-size:.9rem;color:var(--dim);line-height:1.62}
 
   ol.steps{list-style:none;counter-reset:s;display:grid;gap:14px;max-width:46rem}
-  ol.steps li{counter-increment:s;display:flex;gap:16px;background:var(--surface);border:1px solid var(--border);border-radius:15px;padding:18px 20px}
+  ol.steps li{counter-increment:s;display:flex;gap:16px;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:18px 20px}
   ol.steps li::before{
     content:counter(s);flex:none;width:27px;height:27px;border-radius:50%;
-    background:var(--grad);color:#050A18;display:grid;place-items:center;font-weight:700;font-size:.8rem;font-family:var(--display);
+    background:var(--accent);color:var(--accent-ink);display:grid;place-items:center;font-weight:800;font-size:.8rem;font-family:var(--display);
   }
   ol.steps p{font-size:.93rem;color:var(--dim)}
   ol.steps b{color:var(--text);font-weight:600}
 
-  .note{display:flex;gap:14px;background:rgba(251,191,36,.06);border:1px solid rgba(251,191,36,.28);border-radius:15px;padding:18px 20px;margin-top:26px;max-width:46rem}
+  .note{display:flex;gap:14px;background:rgba(251,191,36,.06);border:1px solid rgba(251,191,36,.28);border-radius:10px;padding:18px 20px;margin-top:26px;max-width:46rem}
   .note .ico{font-size:17px;line-height:1.4}
   .note p{font-size:.89rem;color:#E4CE96}
-  .note b{color:var(--amber)}
+  .note b{color:var(--accent)}
 
-  footer{border-top:1px solid var(--border);padding:42px 0 64px;color:var(--faint);font-size:.85rem}
+  footer{border-top:1px solid var(--line);padding:42px 0 64px;color:var(--faint);font-size:.85rem}
   .fgrid{display:flex;justify-content:space-between;gap:20px;flex-wrap:wrap}
-  code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.85em;background:var(--surface-max);padding:2px 7px;border-radius:5px;color:var(--green)}
+  code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.85em;background:var(--surface-max);padding:2px 7px;border-radius:5px;color:var(--accent)}
 
   @media(max-width:880px){
     .hero{padding:44px 0 52px}
@@ -141,21 +140,21 @@
 <header class="hero">
   <div class="wrap hero-inner">
     <div>
-      <div class="mark">🔥</div>
+      <div class="mark">C</div>
       <h1>Beat your friend at <span class="accent">actually doing it.</span></h1>
       <p class="lede">
         Pick a number of days. Tick off the same daily checklist. Race a productivity
-        stopwatch. Complete every task for a day and it turns green — whoever logs the
+        stopwatch. Complete every task for a day and it lights up — whoever logs the
         most focused time by the last day wins.
       </p>
       <div class="cta-row">
-        <a class="btn btn-primary" href="/Challenge-App-1.1.0.apk" download>
+        <a class="btn btn-primary" href="/Challenge-App-1.2.0.apk" download>
           <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
           Download for Android
         </a>
         <a class="btn btn-ghost" href="#install">How to install</a>
       </div>
-      <p class="meta"><b>v1.1.0</b> · 41 MB · APK · Android 6.0+ · <b>64-bit ARM</b></p>
+      <p class="meta"><b>v1.2.0</b> · 39 MB · APK · Android 6.0+ · <b>64-bit ARM</b></p>
     </div>
 
     <div class="phone">
@@ -163,25 +162,25 @@
         <div class="notch"></div>
         <div class="s-eyebrow">Standings</div>
         <div class="board">
-          <div class="board-top"><span>FOCUSED TIME</span><span style="color:var(--violet)">+8m</span></div>
+          <div class="board-top"><span>FOCUSED TIME</span><span style="color:var(--rival)">+8m</span></div>
           <div class="vs">
             <div class="p">
               <div class="av av-b">MC</div>
               <div class="nm">You</div>
-              <div class="tm" style="color:var(--blue)">11h 40m</div>
+              <div class="tm" style="color:var(--accent)">11h 40m</div>
               <div class="sub">8 days · 37/56</div>
             </div>
             <div class="vs-mid">VS</div>
             <div class="p right">
               <div class="av av-v">DP</div>
               <div class="nm">Dev</div>
-              <div class="tm" style="color:var(--violet)">11h 48m</div>
+              <div class="tm" style="color:var(--rival)">11h 48m</div>
               <div class="sub">6 days · 30/56</div>
             </div>
           </div>
           <div class="split">
-            <i style="width:49.7%;background:linear-gradient(90deg,#6D8BFF,#8B5CF6)"></i>
-            <i style="flex:1;background:linear-gradient(90deg,#C084FC,#7C3AED)"></i>
+            <i style="width:49.7%;background:var(--accent)"></i>
+            <i style="flex:1;background:var(--rival)"></i>
           </div>
         </div>
         <div class="s-eyebrow">The 30 days</div>
@@ -214,7 +213,7 @@
     <div class="features">
       <div class="card"><div class="ico">🗓️</div><h3>Set the length</h3><p>Pick any run from 1 to 365 days and a start date. The app builds every day of the challenge for you.</p></div>
       <div class="card"><div class="ico">✅</div><h3>Daily checkboxes</h3><p>Whoever created the challenge sets the tasks for each day. You both tick your own copy, so progress is tracked per person.</p></div>
-      <div class="card"><div class="ico">🟩</div><h3>Green days</h3><p>Tick every task for a day and it turns green on your grid. A dot shows whether your rival finished it too.</p></div>
+      <div class="card"><div class="ico">🟩</div><h3>Day grid</h3><p>Tick every task for a day and the square fills. A bar along the edge shows whether your rival cleared it too.</p></div>
       <div class="card"><div class="ico">⏱️</div><h3>Productivity timer</h3><p>A stopwatch per day that keeps counting if you close the app. The ring fills toward whatever your opponent has logged.</p></div>
       <div class="card"><div class="ico">📊</div><h3>Live standings</h3><p>Who's ahead on focused time, days completed and tasks done — updating the moment your rival ticks something off.</p></div>
       <div class="card"><div class="ico">🔗</div><h3>Invite by link</h3><p>Share a private invite code, or post the challenge publicly and let people ask for the second slot.</p></div>
@@ -253,7 +252,7 @@
 
 <footer>
   <div class="wrap fgrid">
-    <span>Challenge App · v1.1.0</span>
+    <span>Challenge App · v1.2.0</span>
     <span>Built with React Native, Expo and Supabase</span>
   </div>
 </footer>
