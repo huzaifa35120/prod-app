@@ -55,7 +55,8 @@ export default function JoinByCode() {
       <Screen scroll edges={['bottom']}>
         <Stack.Screen options={{ title: 'Invitation' }} />
         <EmptyState
-                    title="That invite is not valid"
+          icon="🔗"
+          title="That invite is not valid"
           subtitle="Double-check the code or ask your friend to send the link again."
           action={<Button title="Back to challenges" variant="secondary" onPress={() => router.replace('/(tabs)')} />}
         />
@@ -77,7 +78,7 @@ export default function JoinByCode() {
       </View>
 
       <Card>
-        <Badge label={`${invite.day_count} days`} tone='accent' />
+        <Badge label={`${invite.day_count} days`} tone="blue" />
         <Text style={styles.title}>{invite.title}</Text>
         {invite.description ? <Text style={styles.desc}>{invite.description}</Text> : null}
 
@@ -132,5 +133,5 @@ const styles = StyleSheet.create({
   title: { color: colors.text, fontSize: 22, fontWeight: '800', marginTop: spacing.md },
   desc: { color: colors.textDim, fontSize: 14, lineHeight: 20, marginTop: spacing.sm },
   meta: { color: colors.textFaint, fontSize: 13 },
-  error: { color: colors.danger, fontSize: 14, marginTop: spacing.lg, textAlign: 'center' },
+  error: { color: colors.red, fontSize: 14, marginTop: spacing.lg, textAlign: 'center' },
 });

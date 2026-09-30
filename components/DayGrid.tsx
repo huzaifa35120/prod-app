@@ -1,6 +1,7 @@
 import React from 'react';
 import { Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
-import { colors, fonts, radius, spacing } from '../lib/theme';
+import { LinearGradient } from 'expo-linear-gradient';
+import { colors, gradients, radius, spacing } from '../lib/theme';
 import { todayKey } from '../lib/format';
 import type { ChallengeDay, DayProgress } from '../lib/types';
 
@@ -21,80 +22,103 @@ export function currentStreak(days: ChallengeDay[], progress: Map<number, DayPro
   let streak = 0;
   for (const d of elapsed) {
     if (progress.get(d.day_number)?.is_complete) streak += 1;
-    else if (d.day_date === today) continue;
+    else if (d.day_date === today) continue; // today still has time left
     else break;
   }
   return streak;
 }
 
 /**
- * The challenge calendar, as a dense block of squares.
- *
- * A solid lime square is a day you completed; the rival's matching day is a
- * bar along the bottom edge. Deliberately tight and unlabelled — it should
- * read as a pattern of form over time, not as a list of cards.
+ * The challenge calendar. Cell fill is the *viewed* player's state — green
+ * once every task for that day is ticked — and the corner pip mirrors the
+ * opponent so you can read both at a glance.
  */
 export function DayGrid({
-  days, progress, opponentProgress, onPressDay, horizontalPadding = (spacing.lg + 2) * 2,
+  days,
+  progress,
+  opponentProgress,
+  onPressDay,
+  horizontalPadding = spacing.lg * 2,
 }: {
   days: ChallengeDay[];
   progress: Map<number, DayProgress>;
   opponentProgress?: Map<number, DayProgress>;
   onPressDay: (day: ChallengeDay) => void;
+  /** Total horizontal padding of the container, so cells divide the row evenly. */
   horizontalPadding?: number;
 }) {
   const today = todayKey();
   const { width } = useWindowDimensions();
 
-  const perRow = width >= 430 ? 8 : 7;
-  const gap = 5;
-  const cell = Math.floor((width - horizontalPadding - gap * (perRow - 1)) / perRow);
+  // Divide the row evenly rather than using a fixed cell size, so the grid
+  // never leaves a ragged edge or overflows on a narrow phone.
+  const perRow = width >= 430 ? 6 : 5;
+  const cell = Math.floor((width - horizontalPadding - spacing.sm * (perRow - 1)) / perRow);
+  const cellStyle = { width: cell, height: cell };
 
   return (
-    <View style={[styles.grid, { gap }]}>
+    <View style={styles.grid}>
       {days.map((day) => {
         const mine = progress.get(day.day_number);
         const theirs = opponentProgress?.get(day.day_number);
         const state = dayStateFor(day, mine);
         const isToday = day.day_date === today;
-        const frac = mine && mine.total_tasks > 0 ? mine.completed_tasks / mine.total_tasks : 0;
+        const frac =
+          mine && mine.total_tasks > 0 ? mine.completed_tasks / mine.total_tasks : 0;
 
         return (
           <Pressable
             key={day.id}
             onPress={() => onPressDay(day)}
-            style={({ pressed }) => [
-              styles.cell,
-              { width: cell, height: cell },
-              state === 'complete' && { backgroundColor: colors.done, borderColor: colors.done },
-              state === 'partial' && { borderColor: colors.partial },
-              state === 'missed' && { borderColor: colors.line },
-              state === 'future' && { borderColor: colors.line, opacity: 0.4 },
-              isToday && state !== 'complete' && { borderColor: colors.accent, borderWidth: 1.5 },
-              pressed && { opacity: 0.55 },
-            ]}
+            style={({ pressed }) => [pressed && { opacity: 0.65, transform: [{ scale: 0.94 }] }]}
           >
-            <Text
-              style={[
-                styles.num,
-                { fontSize: Math.max(10, Math.min(13, cell * 0.34)) },
-                state === 'complete' && { color: colors.accentInk },
-                state === 'partial' && { color: colors.text },
-                state === 'missed' && { color: colors.textFaint },
-                state === 'future' && { color: colors.textFaint },
-                isToday && state !== 'complete' && { color: colors.accent },
-              ]}
-            >
-              {day.day_number}
-            </Text>
+            {state === 'complete' ? (
+              <LinearGradient
+                colors={gradients.green}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={[styles.cell, cellStyle, styles.cellComplete, isToday && styles.cellTodayRing]}
+              >
+                <Text style={[styles.num, { color: colors.greenInk }]}>{day.day_number}</Text>
+                <Text style={[styles.sub, { color: 'rgba(4,20,13,0.6)' }]}>
+                  {mine?.completed_tasks}/{mine?.total_tasks}
+                </Text>
+              </LinearGradient>
+            ) : (
+              <View
+                style={[
+                  styles.cell,
+                  cellStyle,
+                  state === 'partial' && styles.cellPartial,
+                  state === 'missed' && styles.cellMissed,
+                  state === 'future' && styles.cellFuture,
+                  isToday && styles.cellToday,
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.num,
+                    state === 'partial' && { color: colors.amber },
+                    state === 'future' && { color: colors.textFaint },
+                    state === 'missed' && { color: colors.textDim },
+                    isToday && { color: colors.primary },
+                  ]}
+                >
+                  {day.day_number}
+                </Text>
+                <Text style={styles.sub}>
+                  {mine && mine.total_tasks > 0 ? `${mine.completed_tasks}/${mine.total_tasks}` : '·'}
+                </Text>
 
-            {/* partial fill creeps up from the bottom */}
-            {state === 'partial' && frac > 0 ? (
-              <View style={[styles.partialFill, { height: `${frac * 100}%` }]} />
-            ) : null}
+                {frac > 0 && frac < 1 ? (
+                  <View style={styles.meterTrack}>
+                    <View style={[styles.meterFill, { width: `${frac * 100}%` }]} />
+                  </View>
+                ) : null}
+              </View>
+            )}
 
-            {/* rival's completion: a bar across the bottom edge */}
-            {theirs?.is_complete ? <View style={styles.rivalBar} /> : null}
+            {theirs?.is_complete ? <View style={styles.rivalPip} /> : null}
           </Pressable>
         );
       })}
@@ -105,70 +129,88 @@ export function DayGrid({
 export function GridLegend({ rivalName }: { rivalName?: string }) {
   return (
     <View style={styles.legend}>
-      <Item label="Done" swatch={{ backgroundColor: colors.done, borderColor: colors.done }} />
-      <Item label="Part" swatch={{ borderColor: colors.partial }} />
-      <Item label="Missed" swatch={{ borderColor: colors.line }} />
-      {rivalName ? (
-        <View style={styles.legendItem}>
-          <View style={[styles.swatch, { borderColor: colors.line }]}>
-            <View style={styles.rivalBar} />
-          </View>
-          <Text style={styles.legendText}>{rivalName}</Text>
-        </View>
-      ) : null}
+      <LegendItem swatch={colors.green} label="Day complete" solid />
+      <LegendItem swatch={colors.amber} label="Partly done" />
+      <LegendItem swatch={colors.borderHi} label="Missed" />
+      {rivalName ? <LegendItem swatch={colors.rival} label={`${rivalName} done`} pip /> : null}
     </View>
   );
 }
 
-function Item({ label, swatch }: { label: string; swatch: object }) {
+function LegendItem({
+  swatch,
+  label,
+  solid,
+  pip,
+}: {
+  swatch: string;
+  label: string;
+  solid?: boolean;
+  pip?: boolean;
+}) {
   return (
     <View style={styles.legendItem}>
-      <View style={[styles.swatch, swatch]} />
+      <View
+        style={[
+          pip ? styles.legendPip : styles.legendSwatch,
+          {
+            backgroundColor: solid || pip ? swatch : 'transparent',
+            borderColor: swatch,
+          },
+        ]}
+      />
       <Text style={styles.legendText}>{label}</Text>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  grid: { flexDirection: 'row', flexWrap: 'wrap' },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   cell: {
-    borderRadius: radius.xs,
+    borderRadius: radius.md,
     borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
-    backgroundColor: 'transparent',
   },
-  num: {
-    fontFamily: fonts.displayBold,
-    letterSpacing: -0.3,
-    fontVariant: ['tabular-nums'],
-    zIndex: 2,
-  },
-  partialFill: {
+  cellComplete: { borderColor: 'transparent' },
+  cellPartial: { borderColor: colors.amberEdge, backgroundColor: colors.amberDim },
+  cellMissed: { backgroundColor: colors.surface, borderColor: colors.border },
+  cellFuture: { backgroundColor: 'transparent', borderStyle: 'dashed', opacity: 0.5 },
+  cellToday: { borderColor: colors.primary, borderWidth: 2, backgroundColor: colors.primaryDim },
+  cellTodayRing: { borderWidth: 2, borderColor: colors.text },
+
+  num: { fontFamily: 'SpaceGrotesk_700Bold', fontSize: 17, color: colors.text },
+  sub: { fontFamily: 'Inter_500Medium', fontSize: 9.5, color: colors.textFaint, marginTop: 1 },
+
+  meterTrack: {
     position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: colors.surfaceMax,
-    zIndex: 1,
+    left: 8,
+    right: 8,
+    bottom: 6,
+    height: 2.5,
+    borderRadius: 2,
+    backgroundColor: 'rgba(255,255,255,0.10)',
   },
-  rivalBar: {
+  meterFill: { height: '100%', borderRadius: 2, backgroundColor: colors.amber },
+
+  rivalPip: {
     position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
-    height: 3,
+    top: 5,
+    right: 5,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
     backgroundColor: colors.rival,
-    zIndex: 3,
+    borderWidth: 1.5,
+    borderColor: colors.bg,
   },
+
   legend: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.lg, marginTop: spacing.lg },
   legendItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  swatch: { width: 11, height: 11, borderRadius: radius.xs, borderWidth: 1, overflow: 'hidden' },
-  legendText: {
-    fontFamily: fonts.body,
-    fontSize: 10.5,
-    color: colors.textFaint,
-    letterSpacing: 0.3,
-  },
+  legendSwatch: { width: 11, height: 11, borderRadius: 4, borderWidth: 1.5 },
+  legendPip: { width: 8, height: 8, borderRadius: 4 },
+  legendText: { fontFamily: 'Inter_400Regular', fontSize: 11, color: colors.textFaint },
 });

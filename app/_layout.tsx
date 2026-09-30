@@ -9,17 +9,14 @@ import { useFonts } from 'expo-font';
 // Imported per weight, not from the package root: the root index re-exports
 // every weight and italic, and Metro cannot tree-shake asset requires — so a
 // bare import ships ~40 unused font files.
-import { Archivo_600SemiBold } from '@expo-google-fonts/archivo/600SemiBold';
-import { Archivo_700Bold } from '@expo-google-fonts/archivo/700Bold';
-import { Archivo_800ExtraBold } from '@expo-google-fonts/archivo/800ExtraBold';
-import { IBMPlexSans_400Regular } from '@expo-google-fonts/ibm-plex-sans/400Regular';
-import { IBMPlexSans_500Medium } from '@expo-google-fonts/ibm-plex-sans/500Medium';
-import { IBMPlexSans_600SemiBold } from '@expo-google-fonts/ibm-plex-sans/600SemiBold';
-import { IBMPlexSans_700Bold } from '@expo-google-fonts/ibm-plex-sans/700Bold';
+import { SpaceGrotesk_500Medium } from '@expo-google-fonts/space-grotesk/500Medium';
+import { SpaceGrotesk_600SemiBold } from '@expo-google-fonts/space-grotesk/600SemiBold';
+import { SpaceGrotesk_700Bold } from '@expo-google-fonts/space-grotesk/700Bold';
+import { Inter_400Regular } from '@expo-google-fonts/inter/400Regular';
+import { Inter_500Medium } from '@expo-google-fonts/inter/500Medium';
+import { Inter_600SemiBold } from '@expo-google-fonts/inter/600SemiBold';
+import { Inter_700Bold } from '@expo-google-fonts/inter/700Bold';
 import { AuthProvider, useAuth } from '../lib/auth';
-import { usePushRegistration } from '../lib/usePushRegistration';
-import { addNotificationTapListener } from '../lib/notifications';
-import { registerTimerNotificationHandlers } from '../lib/timerNotification';
 import { isSupabaseConfigured } from '../lib/supabase';
 import { colors, fonts } from '../lib/theme';
 import { Loading } from '../components/ui';
@@ -28,31 +25,10 @@ import SetupNotice from '../components/SetupNotice';
 // Hold the splash until the fonts are in memory, so nothing renders unstyled.
 void SplashScreen.preventAutoHideAsync();
 
-// Module scope on purpose: the timer notification's buttons must work even
-// when the app is not running, and the handler has to be registered before
-// the headless task starts.
-registerTimerNotificationHandlers();
-
 function RootNavigator() {
   const { session, initializing } = useAuth();
   const segments = useSegments();
   const router = useRouter();
-
-  usePushRegistration(session?.user?.id ?? null);
-
-  // Tapping a push about the opponent opens the day it refers to.
-  useEffect(
-    () =>
-      addNotificationTapListener((data) => {
-        if (!data.challengeId) return;
-        router.push(
-          data.dayNumber != null
-            ? `/challenge/${data.challengeId}/day/${data.dayNumber}`
-            : `/challenge/${data.challengeId}`
-        );
-      }),
-    [router]
-  );
 
   useEffect(() => {
     if (initializing) return;
@@ -72,7 +48,7 @@ function RootNavigator() {
       screenOptions={{
         headerStyle: { backgroundColor: colors.bg },
         headerTintColor: colors.text,
-        headerTitleStyle: { fontFamily: fonts.display, fontSize: 15 },
+        headerTitleStyle: { fontFamily: fonts.display, fontSize: 17 },
         headerShadowVisible: false,
         headerBackButtonDisplayMode: 'minimal',
         contentStyle: { backgroundColor: colors.bg },
@@ -94,13 +70,13 @@ function RootNavigator() {
 
 export default function RootLayout() {
   const [fontsLoaded, fontError] = useFonts({
-    Archivo_600SemiBold,
-    Archivo_700Bold,
-    Archivo_800ExtraBold,
-    IBMPlexSans_400Regular,
-    IBMPlexSans_500Medium,
-    IBMPlexSans_600SemiBold,
-    IBMPlexSans_700Bold,
+    SpaceGrotesk_500Medium,
+    SpaceGrotesk_600SemiBold,
+    SpaceGrotesk_700Bold,
+    Inter_400Regular,
+    Inter_500Medium,
+    Inter_600SemiBold,
+    Inter_700Bold,
   });
 
   const onReady = useCallback(async () => {

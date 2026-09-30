@@ -18,8 +18,8 @@ import {
   listTasks, logFocusSession, setTaskDone, deleteFocusSession,
 } from '../../../../lib/api';
 import { supabase, errorMessage } from '../../../../lib/supabase';
-import { challengePhase, formatDate, formatDuration, todayKey } from '../../../../lib/format';
-import { colors, fonts, radius, spacing } from '../../../../lib/theme';
+import { formatDate, formatDuration, todayKey } from '../../../../lib/format';
+import { colors, radius, spacing } from '../../../../lib/theme';
 import {
   displayNameOf,
   type ChallengeDay, type ChallengeWithPeople, type FocusSession, type Task, type TaskCompletion,
@@ -116,17 +116,10 @@ export default function DayScreen() {
   );
 
   const isFuture = day ? day.day_date > todayKey() : false;
-  // Once the last day has passed the whole challenge freezes — the database
-  // rejects these writes too, so the UI just avoids offering them.
-  const isOver = challenge
-    ? challenge.status === 'completed' ||
-      challengePhase(challenge.start_date, challenge.end_date) === 'finished'
-    : false;
-  const locked = isFuture || isOver;
   const allDone = tasks.length > 0 && myDone.size === tasks.length;
 
   async function toggle(task: Task) {
-    if (!user || !challenge || locked) return;
+    if (!user || !challenge || isFuture) return;
     const on = !myDone.has(task.id);
     setTogglingId(task.id);
     // Optimistic: the checkbox flips immediately, then reconciles with the server.
@@ -235,14 +228,12 @@ export default function DayScreen() {
               <View style={{ height: 2 }} />
               <Hero>Day {day.day_number}</Hero>
             </View>
-            {isOver ? (
-              <Badge label="Finished" tone="rival" />
-            ) : allDone ? (
-              <Badge label="Complete" tone='accent' solid />
+            {allDone ? (
+              <Badge label="Complete" tone="green" dot />
             ) : isFuture ? (
               <Badge label="Locked" tone="neutral" />
             ) : tasks.length > 0 ? (
-              <Badge label={`${myDone.size} of ${tasks.length}`} tone='neutral' />
+              <Badge label={`${myDone.size} of ${tasks.length}`} tone="amber" />
             ) : null}
           </Row>
 
@@ -250,7 +241,7 @@ export default function DayScreen() {
             <View style={{ marginTop: spacing.lg }}>
               <ProgressBar
                 value={myDone.size / tasks.length}
-                tint={allDone ? colors.done : colors.partial}
+                tint={allDone ? colors.green : colors.amber}
                 height={5}
               />
             </View>
@@ -258,24 +249,14 @@ export default function DayScreen() {
 
           {allDone ? (
             <View style={styles.greenBanner}>
-              <Ionicons name="checkmark-circle" size={19} color={colors.done} />
+              <Ionicons name="checkmark-circle" size={19} color={colors.green} />
               <Text style={styles.greenBannerText}>
                 Every task ticked — this day is green on your grid.
               </Text>
             </View>
           ) : null}
 
-          {isOver ? (
-            <Card style={{ marginTop: spacing.lg, backgroundColor: colors.surfaceHi }}>
-              <Row style={{ gap: spacing.md }}>
-                <Ionicons name="lock-closed" size={16} color={colors.rival} />
-                <Body muted size={13}>
-                  This challenge ended on {formatDate(challenge.end_date)}. Tasks, ticks and
-                  logged time are final and can no longer be changed.
-                </Body>
-              </Row>
-            </Card>
-          ) : isFuture ? (
+          {isFuture ? (
             <Card style={{ marginTop: spacing.lg, backgroundColor: colors.surfaceHi }}>
               <Row style={{ gap: spacing.md }}>
                 <Ionicons name="lock-closed-outline" size={16} color={colors.textFaint} />
@@ -291,10 +272,9 @@ export default function DayScreen() {
           <SectionTitle
             right={
               challenge.opponent_id ? (
-                <Row style={{ gap: 6 }}>
-                  <View style={styles.legendBar} />
-                  <Text style={styles.legendMini}>{displayNameOf(opponentProfile)}</Text>
-                </Row>
+                <Text style={styles.legendMini}>
+                  ◦ = {displayNameOf(opponentProfile)}
+                </Text>
               ) : null
             }
           >
@@ -317,15 +297,15 @@ export default function DayScreen() {
                 done={myDone.has(task.id)}
                 rivalDone={theirDone.has(task.id)}
                 busy={togglingId === task.id}
-                locked={!amParticipant || locked}
-                canDelete={Boolean(amCreator) && !isOver}
+                locked={!amParticipant || isFuture}
+                canDelete={Boolean(amCreator)}
                 onToggle={() => toggle(task)}
                 onDelete={() => confirmDeleteTask(task)}
               />
             ))
           )}
 
-          {amCreator && !isOver ? (
+          {amCreator ? (
             <Row style={{ gap: spacing.sm, marginTop: spacing.md }}>
               <TextInput
                 value={newTask}
@@ -347,14 +327,10 @@ export default function DayScreen() {
               <SectionTitle>Productivity timer</SectionTitle>
               <FocusTimer
                 storageKey={`timer:${challenge.id}:${day.id}`}
-                disabled={locked}
+                disabled={isFuture}
                 myLoggedToday={mySeconds}
                 theirLoggedToday={theirSeconds}
                 rivalName={challenge.opponent_id ? displayNameOf(opponentProfile) : undefined}
-                challengeId={challenge.id}
-                challengeTitle={challenge.title}
-                dayId={day.id}
-                dayNumber={day.day_number}
                 onLog={onLogTime}
               />
 
@@ -364,7 +340,7 @@ export default function DayScreen() {
                     <Avatar name={profile ? displayNameOf(profile) : 'You'} size={30} />
                     <Text style={styles.tallyName}>You</Text>
                   </Row>
-                  <Text style={[styles.tallyTime, { color: colors.accent }]}>
+                  <Text style={[styles.tallyTime, { color: colors.primary }]}>
                     {formatDuration(mySeconds)}
                   </Text>
                 </Row>
@@ -419,52 +395,53 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.md,
-    backgroundColor: colors.doneDim,
+    backgroundColor: colors.greenDim,
     borderWidth: 1,
-    borderColor: colors.done,
+    borderColor: colors.greenEdge,
     borderRadius: radius.md,
     padding: spacing.md,
     marginTop: spacing.lg,
   },
-  greenBannerText: { color: colors.done, fontSize: 13, fontWeight: '600', flex: 1 },
+  greenBannerText: { color: colors.green, fontSize: 13, fontWeight: '600', flex: 1 },
   taskRow: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: colors.line,
+    borderColor: colors.border,
     borderRadius: radius.md,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.md,
     marginBottom: spacing.sm,
     gap: spacing.sm,
   },
-  taskRowDone: { borderColor: colors.done, backgroundColor: colors.doneDim },
+  taskRowDone: { borderColor: colors.greenEdge, backgroundColor: colors.greenDim },
   checkArea: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, flex: 1 },
   checkbox: {
     width: 24,
     height: 24,
     borderRadius: 7,
     borderWidth: 2,
-    borderColor: colors.textFaint,
+    borderColor: colors.borderGlow,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  checkboxOn: { backgroundColor: colors.done, borderColor: colors.done },
+  checkboxOn: { backgroundColor: colors.green, borderColor: colors.green },
   taskTitle: { color: colors.text, fontSize: 15, flex: 1 },
-  taskTitleDone: { color: colors.done, textDecorationLine: 'line-through' },
+  taskTitleDone: { color: colors.green, textDecorationLine: 'line-through' },
   theirDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: colors.rival },
   addInput: {
     flex: 1,
-    borderBottomWidth: 1.5,
-    borderBottomColor: colors.line,
+    backgroundColor: colors.surfaceHi,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    paddingHorizontal: spacing.md,
     paddingVertical: spacing.md,
     color: colors.text,
     fontSize: 15,
-    fontFamily: fonts.bodyMd,
   },
-  legendMini: { color: colors.textFaint, fontSize: 10, fontFamily: fonts.body },
-  legendBar: { width: 3, height: 10, backgroundColor: colors.rival },
+  legendMini: { color: colors.textFaint, fontSize: 10 },
   tallyName: { color: colors.text, fontSize: 14, fontWeight: '600', flexShrink: 1 },
   tallyTime: { fontSize: 16, fontWeight: '800' },
   sessionRow: {
@@ -473,7 +450,7 @@ const styles = StyleSheet.create({
     gap: spacing.md,
     backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: colors.line,
+    borderColor: colors.border,
     borderRadius: radius.md,
     padding: spacing.md,
     marginBottom: spacing.sm,

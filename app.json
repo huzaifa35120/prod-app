@@ -3,7 +3,7 @@
     "name": "Challenge App",
     "slug": "challenge-app",
     "scheme": "challengeapp",
-    "version": "1.3.0",
+    "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
@@ -14,13 +14,13 @@
     "android": {
       "package": "com.challengeapp.mobile",
       "adaptiveIcon": {
-        "backgroundColor": "#0A0A0B",
+        "backgroundColor": "#07090E",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "versionCode": 5
+      "versionCode": 6
     },
     "web": {
       "favicon": "./assets/favicon.png",
@@ -41,18 +41,10 @@
           "image": "./assets/splash-icon.png",
           "imageWidth": 180,
           "resizeMode": "contain",
-          "backgroundColor": "#0A0A0B"
-        }
-      ],
-      [
-        "expo-notifications",
-        {
-          "icon": "./assets/notification-icon.png",
-          "color": "#CCFF00",
-          "defaultChannel": "challenge-events"
+          "backgroundColor": "#07090E"
         }
       ]
     ],
-    "backgroundColor": "#0A0A0B"
+    "backgroundColor": "#07090E"
   }
 }

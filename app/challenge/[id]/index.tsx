@@ -19,7 +19,7 @@ import {
 } from '../../../lib/api';
 import { supabase, errorMessage } from '../../../lib/supabase';
 import { challengePhase, formatDate } from '../../../lib/format';
-import { colors, fonts, radius, spacing } from '../../../lib/theme';
+import { colors, radius, spacing } from '../../../lib/theme';
 import {
   displayNameOf,
   type ChallengeDay, type ChallengeWithPeople, type DayProgress,
@@ -220,10 +220,10 @@ export default function ChallengeDetail() {
               finished ? 'Finished' : !challenge.opponent_id ? 'Waiting for opponent'
                 : phase === 'upcoming' ? 'Starts soon' : 'Live'
             }
-            tone={finished ? 'rival' : !challenge.opponent_id ? 'neutral' : phase === 'upcoming' ? 'accent' : 'accent'}
+            tone={finished ? 'rival' : !challenge.opponent_id ? 'amber' : phase === 'upcoming' ? 'blue' : 'green'}
           />
           <Badge label={`${challenge.day_count} days`} />
-          <Badge label={challenge.is_public ? 'Public' : 'Private'} tone={challenge.is_public ? 'accent' : 'neutral'} />
+          <Badge label={challenge.is_public ? 'Public' : 'Private'} tone={challenge.is_public ? 'blue' : 'neutral'} />
         </Row>
 
         <Text style={styles.title}>{challenge.title}</Text>
@@ -264,7 +264,7 @@ export default function ChallengeDetail() {
               </Row>
             </Card>
 
-            <SectionTitle right={<Badge label={`${requests.length}`} tone={requests.length ? 'accent' : 'neutral'} />}>
+            <SectionTitle right={<Badge label={`${requests.length}`} tone={requests.length ? 'blue' : 'neutral'} />}>
               Join requests
             </SectionTitle>
             {requests.length === 0 ? (
@@ -348,7 +348,7 @@ export default function ChallengeDetail() {
             {amCreator ? (
               <Card style={{ marginTop: spacing.xl, backgroundColor: colors.surfaceHi }}>
                 <Row style={{ gap: spacing.md }}>
-                  <Ionicons name="information-circle-outline" size={18} color={colors.accent} />
+                  <Ionicons name="information-circle-outline" size={18} color={colors.primary} />
                   <Body muted size={13}>
                     You created this challenge, so you set the tasks. Tap any day to add or remove its
                     checkboxes.
@@ -380,11 +380,10 @@ function SegmentButton({
   onPress: () => void;
 }) {
   return (
-    <Pressable onPress={onPress} style={styles.segmentBtn}>
+    <Pressable onPress={onPress} style={[styles.segmentBtn, active && styles.segmentBtnActive]}>
       <Text style={[styles.segmentText, active && styles.segmentTextActive]} numberOfLines={1}>
         {label}
       </Text>
-      <View style={[styles.segmentRule, active && styles.segmentRuleActive]} />
     </Pressable>
   );
 }
@@ -399,25 +398,23 @@ const styles = StyleSheet.create({
   codeBox: {
     backgroundColor: colors.surfaceHi,
     borderWidth: 1,
-    borderColor: colors.line,
+    borderColor: colors.border,
     borderRadius: radius.md,
     padding: spacing.md,
     marginVertical: spacing.lg,
     alignItems: 'center',
   },
-  code: { color: colors.done, fontFamily: 'Menlo', fontSize: 16, letterSpacing: 2 },
-  segment: { gap: spacing.xl, marginBottom: spacing.lg },
-  segmentBtn: { alignItems: 'flex-start' },
-  segmentBtnActive: {},
-  segmentText: {
-    fontFamily: fonts.bodySemi,
-    fontSize: 12,
-    letterSpacing: 1.3,
-    textTransform: 'uppercase',
-    color: colors.textFaint,
-    marginBottom: 7,
+  code: { color: colors.green, fontFamily: 'Menlo', fontSize: 16, letterSpacing: 2 },
+  segment: {
+    backgroundColor: colors.surfaceHi,
+    borderRadius: radius.md,
+    padding: 3,
+    marginBottom: spacing.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
-  segmentTextActive: { color: colors.text },
-  segmentRule: { height: 2, width: '100%', minWidth: 42, backgroundColor: 'transparent' },
-  segmentRuleActive: { backgroundColor: colors.accent },
+  segmentBtn: { flex: 1, paddingVertical: spacing.sm + 2, borderRadius: radius.sm, alignItems: 'center' },
+  segmentBtnActive: { backgroundColor: colors.primaryDim },
+  segmentText: { color: colors.textDim, fontSize: 13, fontWeight: '600' },
+  segmentTextActive: { color: colors.primary },
 });

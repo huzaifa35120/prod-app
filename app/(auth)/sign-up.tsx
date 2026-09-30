@@ -5,7 +5,7 @@ import { Body, Button, Field, Hero, Screen } from '../../components/ui';
 import { LogoMark } from '../../components/LogoMark';
 import { useAuth } from '../../lib/auth';
 import { errorMessage } from '../../lib/supabase';
-import { colors, fonts, spacing, type } from '../../lib/theme';
+import { colors, spacing, type } from '../../lib/theme';
 
 const USERNAME_RE = /^[a-z0-9_]{3,20}$/;
 
@@ -106,10 +106,10 @@ export default function SignUp() {
           />
 
           {error ? (
-            <Text style={[type.bodySm, { color: colors.danger, marginBottom: spacing.lg }]}>{error}</Text>
+            <Text style={[type.bodySm, { color: colors.red, marginBottom: spacing.lg }]}>{error}</Text>
           ) : null}
           {notice ? (
-            <Text style={[type.bodySm, { color: colors.done, marginBottom: spacing.lg }]}>{notice}</Text>
+            <Text style={[type.bodySm, { color: colors.green, marginBottom: spacing.lg }]}>{notice}</Text>
           ) : null}
 
           <Button title="Create account" onPress={submit} loading={busy} />
@@ -119,7 +119,7 @@ export default function SignUp() {
             <Pressable>
               <Text style={[type.bodySm, { textAlign: 'center' }]}>
                 Already have an account?{' '}
-                <Text style={{ color: colors.accent, fontFamily: fonts.bodySemi }}>
+                <Text style={{ color: colors.primary, fontFamily: 'Inter_600SemiBold' }}>
                   Sign in
                 </Text>
               </Text>

@@ -1,8 +1,6 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import type { Session, User } from '@supabase/supabase-js';
 import { supabase } from './supabase';
-import { forgetPushToken, storedPushToken } from './usePushRegistration';
-import { removePushToken } from './api';
 import type { Profile } from './types';
 
 interface AuthValue {
@@ -88,18 +86,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   );
 
   const signOut = useCallback(async () => {
-    // Unregister this device first, so a signed-out phone stops being
-    // notified about a challenge it can no longer see.
-    try {
-      const token = await storedPushToken();
-      if (token && userId) await removePushToken(userId, token);
-      await forgetPushToken();
-    } catch {
-      // Best effort — never block sign-out on it.
-    }
     await supabase.auth.signOut();
     setProfile(null);
-  }, [userId]);
+  }, []);
 
   const value = useMemo<AuthValue>(
     () => ({

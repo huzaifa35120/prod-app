@@ -1,132 +1,94 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { AppState } from 'react-native';
-import {
-  addOf, elapsedOf, IDLE, mutateTimer, pauseOf, readTimer, startOf, writeTimer,
-  type ActiveTimer, type TimerState,
-} from './timerState';
-import {
-  clearTimerNotification, onTimerChangedExternally, showTimerNotification,
-} from './timerNotification';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
-type Meta = Omit<ActiveTimer, 'storageKey'>;
+interface TimerState {
+  running: boolean;
+  /** Epoch ms when the current run began, or null while paused. */
+  startedAt: number | null;
+  /** Seconds banked from previous runs. */
+  accumulated: number;
+}
+
+const IDLE: TimerState = { running: false, startedAt: null, accumulated: 0 };
 
 /**
- * A stopwatch that survives backgrounding and app restarts, mirrored into an
- * ongoing notification with Pause / Resume / Log it / Discard.
+ * A stopwatch that survives backgrounding and app restarts.
  *
- * Storage is the single source of truth. Every change goes through a
- * serialised read-modify-write, and reads never write back — an earlier
- * version persisted on every state change, so a value read during the
- * foreground transition could overwrite a change the notification had just
- * made. That is what made repeated Pause presses appear to do nothing.
+ * Elapsed time is derived from wall-clock timestamps rather than counted
+ * ticks, so time that passes while the app is suspended still counts and
+ * a dropped interval can never lose seconds.
  */
-export function useStopwatch(storageKey: string, meta?: Meta) {
+export function useStopwatch(storageKey: string) {
   const [state, setState] = useState<TimerState>(IDLE);
   const [hydrated, setHydrated] = useState(false);
   const [, setTick] = useState(0);
+  const keyRef = useRef(storageKey);
 
-  const metaRef = useRef<Meta | undefined>(meta);
-  metaRef.current = meta;
-  const mounted = useRef(true);
-
-  useEffect(() => {
-    mounted.current = true;
-    return () => {
-      mounted.current = false;
-    };
-  }, []);
-
-  const activeMeta = useCallback((): ActiveTimer | null => {
-    const m = metaRef.current;
-    return m ? { ...m, storageKey } : null;
-  }, [storageKey]);
-
-  /** Reflects a state into the shade: shown while it has time, cleared when idle. */
-  const mirror = useCallback(
-    (next: TimerState) => {
-      const m = activeMeta();
-      if (!m) return;
-
-      if (next.running || elapsedOf(next) > 0) void showTimerNotification(m, next);
-      // Scoped to this key: opening an idle day must not cancel a timer that
-      // is still running on a different one.
-      else void clearTimerNotification(storageKey);
-    },
-    [activeMeta]
-  );
-
-  // Load whatever was left for this day.
+  // Load any timer that was left running for this day.
   useEffect(() => {
     let alive = true;
+    keyRef.current = storageKey;
     setHydrated(false);
     setState(IDLE);
 
-    void readTimer(storageKey).then((s) => {
-      if (!alive) return;
-      setState(s);
-      setHydrated(true);
-      // Only a RUNNING timer re-claims the shade. Merely opening a day that
-      // has banked-but-unlogged time should not raise a notification.
-      if (s.running) mirror(s);
-    });
+    AsyncStorage.getItem(storageKey)
+      .then((raw) => {
+        if (!alive) return;
+        if (raw) {
+          try {
+            const parsed = JSON.parse(raw) as TimerState;
+            if (typeof parsed.accumulated === 'number') setState(parsed);
+          } catch {
+            // Corrupt entry: fall back to a fresh timer.
+          }
+        }
+        setHydrated(true);
+      })
+      .catch(() => setHydrated(true));
 
     return () => {
       alive = false;
     };
-  }, [storageKey, mirror]);
-
-  /** The only path that writes. Storage first, then local state. */
-  const apply = useCallback(
-    (fn: (s: TimerState) => TimerState) => {
-      void mutateTimer(storageKey, fn).then((next) => {
-        if (mounted.current) setState(next);
-        mirror(next);
-      });
-    },
-    [storageKey, mirror]
-  );
-
-  // The notification's buttons mutate storage directly; adopt their result
-  // without writing it back.
-  useEffect(
-    () =>
-      onTimerChangedExternally((key, next) => {
-        if (key === storageKey && mounted.current) setState(next);
-      }),
-    [storageKey]
-  );
-
-  // Returning to the foreground, storage may be newer than our state.
-  useEffect(() => {
-    const sub = AppState.addEventListener('change', (s) => {
-      if (s !== 'active') return;
-      void readTimer(storageKey).then((next) => {
-        if (mounted.current) setState(next);
-      });
-    });
-    return () => sub.remove();
   }, [storageKey]);
 
-  // Re-render once a second while running so the on-screen clock advances.
+  // Persist after every change, but never before hydration (that would
+  // clobber a saved timer with the empty initial state).
+  useEffect(() => {
+    if (!hydrated) return;
+    void AsyncStorage.setItem(storageKey, JSON.stringify(state)).catch(() => {});
+  }, [storageKey, state, hydrated]);
+
+  // Re-render once a second while running so the clock advances.
   useEffect(() => {
     if (!state.running) return;
     const id = setInterval(() => setTick((n) => n + 1), 1000);
     return () => clearInterval(id);
   }, [state.running]);
 
-  const elapsed = elapsedOf(state);
+  const elapsed = Math.floor(
+    state.accumulated + (state.running && state.startedAt ? (Date.now() - state.startedAt) / 1000 : 0)
+  );
 
-  const start = useCallback(() => apply(startOf), [apply]);
-  const pause = useCallback(() => apply(pauseOf), [apply]);
-  const addSeconds = useCallback((s: number) => apply((prev) => addOf(prev, s)), [apply]);
+  const start = useCallback(() => {
+    setState((s) => (s.running ? s : { ...s, running: true, startedAt: Date.now() }));
+  }, []);
 
-  /** Clears the timer outright — used after banking the time. */
-  const reset = useCallback(() => {
-    void writeTimer(storageKey, IDLE).then(() => {
-      if (mounted.current) setState(IDLE);
-      void clearTimerNotification(storageKey);
+  const pause = useCallback(() => {
+    setState((s) => {
+      if (!s.running || !s.startedAt) return s;
+      return {
+        running: false,
+        startedAt: null,
+        accumulated: s.accumulated + (Date.now() - s.startedAt) / 1000,
+      };
     });
-  }, [storageKey]);
+  }, []);
+
+  const reset = useCallback(() => setState(IDLE), []);
+
+  const addSeconds = useCallback((seconds: number) => {
+    setState((s) => ({ ...s, accumulated: s.accumulated + seconds }));
+  }, []);
 
   return { elapsed, running: state.running, hydrated, start, pause, reset, addSeconds };
 }

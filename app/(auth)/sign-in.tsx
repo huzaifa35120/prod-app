@@ -5,7 +5,7 @@ import { Body, Button, Field, Hero, Screen } from '../../components/ui';
 import { LogoMark } from '../../components/LogoMark';
 import { useAuth } from '../../lib/auth';
 import { errorMessage } from '../../lib/supabase';
-import { colors, fonts, spacing, type } from '../../lib/theme';
+import { colors, spacing, type } from '../../lib/theme';
 
 export default function SignIn() {
   const { signIn } = useAuth();
@@ -80,7 +80,7 @@ export default function SignIn() {
             <Pressable>
               <Text style={[type.bodySm, { textAlign: 'center' }]}>
                 No account yet?{' '}
-                <Text style={{ color: colors.accent, fontFamily: fonts.bodySemi }}>
+                <Text style={{ color: colors.primary, fontFamily: 'Inter_600SemiBold' }}>
                   Sign up
                 </Text>
               </Text>

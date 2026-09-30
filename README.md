@@ -43,19 +43,13 @@ project, and wait for it to finish provisioning (about two minutes).
 
 ### 2. Create the database
 
-In the dashboard, open **SQL Editor → New query**. Run the migrations in order,
-one query at a time:
+In the dashboard, open **SQL Editor → New query**. Paste the entire contents of
+[`supabase/migrations/0001_init.sql`](supabase/migrations/0001_init.sql) and
+press **Run**.
 
-1. [`supabase/migrations/0001_init.sql`](supabase/migrations/0001_init.sql) —
-   tables, RLS, triggers, stats views, RPCs.
-2. [`supabase/migrations/0002_tasks_lock_notifications.sql`](supabase/migrations/0002_tasks_lock_notifications.sql)
-   — challenge-wide task seeding, the end-of-challenge lock, and push.
-
-`0002` is safe to run on a database that already has `0001`.
-
-Between them these create every table, the row-level-security policies, the
+That one script creates every table, the row-level-security policies, the
 triggers that generate profiles and challenge days, the stats views and the
-RPCs. Each should report "Success. No rows returned".
+RPCs. You should see "Success. No rows returned".
 
 ### 3. Turn off email confirmation (recommended while testing)
 
@@ -125,8 +119,8 @@ app/
   _layout.tsx                       root stack, auth gate, setup notice
   (auth)/sign-in.tsx  sign-up.tsx
   (tabs)/
-    index.tsx                       Today — tick today's tasks from anywhere
-    challenges.tsx                  yours, grouped by phase + Browse toggle
+    index.tsx                       your challenges, grouped by phase
+    discover.tsx                    open challenges + invite code entry
     friends.tsx                     search, requests, friend list
     profile.tsx                     your profile and lifetime stats
   challenge/
@@ -137,11 +131,11 @@ app/
   user/[id].tsx                     someone else's profile
 
 components/
-  ui.tsx           design-system primitives (Button, Field, Badge, Rule, Stat, …)
+  ui.tsx           design-system primitives (Card, Button, Field, Badge, …)
   ChallengeCard    list card with day progress and who is ahead
   DayGrid          the calendar, including the green-day states
-  StatsPanel       head-to-head scoreboard
-  FocusTimer       the day's stopwatch
+  StatsPanel       head-to-head scoreboard and winner banner
+  FocusTimer       circular stopwatch that races your opponent
   TaskRow          animated checkbox row
   DateField(.web)  native date picker, with a browser fallback
 lib/           supabase client, auth context, API layer, theme, types, helpers
@@ -161,7 +155,6 @@ scripts/verify-schema.mjs           schema verification
 | `task_completions` | One row per (task, user). This is what "ticked" means. |
 | `focus_sessions` | Logged productivity time, per user per day. |
 | `challenge_join_requests` | Requests to take the open slot. |
-| `push_tokens` | One row per signed-in device, so the opponent can be notified. |
 
 Two views do the aggregation:
 
@@ -178,12 +171,6 @@ Two views do the aggregation:
   filling the opponent slot, so two people racing for it cannot both win.
 - **Future days are read-only.** You cannot tick tasks or log time for a day
   that has not started yet. The creator can still add tasks ahead of time.
-- **A finished challenge is frozen.** Once the last day has passed, tasks,
-  ticks and logged time can no longer change — enforced by database triggers,
-  not just the UI, so it holds even against a direct API call. Past days stay
-  fully editable *while* the challenge is still running.
-- **The starting checklist is set at creation** and copied onto every day. The
-  creator can still add or remove tasks on an individual day afterwards.
 - **The timer stores timestamps, not ticks.** Elapsed time is computed from
   wall-clock times, so backgrounding or force-quitting the app does not lose
   seconds. Nothing reaches the database until you tap *Log it*.
@@ -195,48 +182,48 @@ Two views do the aggregation:
 
 ## Design system
 
-Everything visual comes from [`lib/theme.ts`](lib/theme.ts) — palette, spacing,
-radii and a full type scale. Components read from it rather than hard-coding
-values, so the accent colour or the type ramp can be changed in that one file.
+Everything visual comes from [`lib/theme.ts`](lib/theme.ts) — palette, gradients,
+spacing, radii, elevation and a full type scale. Components read from it rather
+than hard-coding values, so changing the accent colour or the type ramp in that
+one file re-skins the app.
 
-The direction is **athletic / editorial**: it should read like a results board,
-not a SaaS dashboard. Four rules hold it together, and breaking any of them is
-what made the earlier version look generic:
+- **Type** — Space Grotesk for headings and every number (it has proper tabular
+  figures, which the stopwatch needs), Inter for prose. Both load through
+  `expo-font` behind the splash screen, so nothing renders unstyled.
+- **Colour** — a near-black base with a cool cast, so the accent gradients read
+  as light sources. Blue is *you*, violet is your opponent, green means done,
+  amber means partly done. That mapping holds everywhere.
+- **Motion** — React Native's `Animated` (no Reanimated, so no extra native
+  dependency): buttons and cards scale on press, checkboxes spring, the timer
+  ring sweeps, and the scoreboard bar slides when the standings change.
 
-1. **No gradients.** Flat fills only.
-2. **No glows.** Depth comes from contrast and hairline rules, not shadow.
-3. **One accent.** Lime is *you*; orange is *your rival*. Nothing else in the
-   app is coloured, so colour always carries meaning — a lime square is a day
-   you completed, an orange bar is your opponent.
-4. **Structure comes from rules and spacing,** not from wrapping everything in
-   a card. Lists are full-bleed rows divided by hairlines.
+### Safe areas
 
-- **Type** — Archivo (800/700/600) for headings and every number, set tight and
-  uppercase; IBM Plex Sans for prose and labels. Numbers are always tabular so
-  columns line up.
-- **Surfaces** are neutral near-blacks with no blue cast, and radii are small —
-  large pill shapes read as friendly consumer software, which this is not.
-- **Motion** uses React Native's `Animated` (no Reanimated, so no extra native
-  dependency): buttons and rows scale slightly on press, checkboxes spring, and
-  the scoreboard bar slides when the standings change.
+From SDK 52 Android renders **edge-to-edge**: the app draws underneath the
+status bar and the gesture/navigation bar rather than being letterboxed above
+them. iOS has the same problem with the home indicator. So every screen has to
+reserve those insets itself.
 
-### Navigation
+- **Tab screens** pass `edges={['top']}`. The tab bar reserves the bottom inset
+  in [`app/(tabs)/_layout.tsx`](app/(tabs)/_layout.tsx) — note that setting an
+  explicit `height` on `tabBarStyle` *overrides* react-navigation's automatic
+  inset, so the height there is `BAR_CONTENT_HEIGHT + insets.bottom` with a
+  matching `paddingBottom`. If you change that height, keep the inset in it.
+- **Stack screens** (challenge, day, invite, profile) pass `edges={['bottom']}`
+  — the navigation header already covers the top.
+- **Auth screens** pass `edges={['top', 'bottom']}`; they have neither.
 
-**Today** is the home tab. Ticking today's boxes is the thing you do every day,
-so it sits one tap from launch rather than three screens deep — it shows today's
-checklist across every live challenge, the head-to-head for the day, and a route
-into the timer.
-
-Discover used to be its own tab, which gave browsing strangers' challenges the
-same weight as your own. It is a **Browse** toggle inside Challenges now, which
-freed the tab slot Today uses.
+Layout is sized from `useWindowDimensions()` rather than fixed pixels where it
+matters: the day grid divides each row evenly (5 cells per row, 6 above 430pt)
+and the timer ring scales between 180 and 250pt. Verified with no horizontal
+overflow at 320, 360 and 430pt.
 
 ### Font and icon imports
 
 Both are imported per file rather than from the package root:
 
 ```ts
-import { Archivo_800ExtraBold } from '@expo-google-fonts/archivo/800ExtraBold';
+import { Inter_400Regular } from '@expo-google-fonts/inter/400Regular';
 import Ionicons from '@expo/vector-icons/Ionicons';
 ```
 
@@ -244,91 +231,6 @@ Metro cannot tree-shake `require()`d assets, so importing from the root ships
 every weight and every icon family. Keeping the direct paths cut the bundle from
 42 font files to 8. Follow the same pattern if you add a weight or a second icon
 set.
-
----
-
-## Notifications
-
-There are two separate things here, and they have very different requirements.
-
-### The productivity timer in the notification shade
-
-A running timer appears as an ongoing notification whose **elapsed count is
-drawn by Android's own chronometer**. No JavaScript is involved in the ticking,
-which is what makes it keep counting while the app is backgrounded or killed,
-and why it costs nothing in battery. Pause / Resume / Log it / Discard are
-handled by a headless task, so pressing one does not open the app.
-
-This needs `@notifee/react-native`. `expo-notifications` cannot do it: it
-exposes neither `usesChronometer` nor `onlyAlertOnce`. An earlier attempt
-redrew the notification from JS once a second, which produced three bugs at
-once — a fresh alert every second (no `onlyAlertOnce`), a count that froze the
-moment the app was backgrounded (Android suspends JS timers), and button
-handling tangled up with the redraw loop.
-
-Notifee is flagged "unmaintained" by React Native Directory and is excluded
-from that check in package.json. It is the only library that reaches the
-platform chronometer, and the build links it — `autolinking.json` lists it and
-the compiled APK carries its classes.
-
-Two further things keep the controls reliable, both covered by
-`node scripts/test-timer.mjs`:
-
-- **Storage is the single source of truth.** An earlier version persisted on
-  every React state change, so a value read during the foreground transition
-  could overwrite a change the notification had just made — which is why
-  repeated Pause presses appeared to do nothing.
-- **Every mutation is serialised**, so two quick presses cannot interleave
-  their read-modify-write against the same stored timer.
-
-The background handler is registered in [`index.js`](index.js), at the top of
-the entry file, because Android starts it as a headless task before the app
-exists.
-
-**iOS shows no timer notification.** A live-updating one there needs Live
-Activities (ActivityKit), a native widget extension in Swift. The app is
-Android-only today.
-
-### Push when your opponent ticks a task
-
-The server half is **done and verified**: ticking a task fires a Postgres
-trigger that calls Expo's push service through `pg_net`, addressed to the
-opponent's registered devices. It sends "… ticked a task", or "… finished day
-N 🟩" when that tick completes their day. Tapping it opens that exact day.
-
-Every send is wrapped so a notification problem can never roll back the tick
-that caused it — verified with a missing extension, no registered device, and
-a solo challenge.
-
-**To actually receive them you need Firebase**, because all Android push is
-delivered by FCM. There is no way around this; it is an OS-level requirement,
-not a choice this app made. Until it is set up, `usePushRegistration` reports
-`unavailable` and the app works normally without notifications.
-
-1. Create a free Firebase project and add an Android app with the package name
-   `com.challengeapp.mobile`.
-2. Download `google-services.json` into the project root, then point at it:
-   `"android": { "googleServicesFile": "./google-services.json" }` in app.json.
-3. Create an Expo project id so a push token can be issued:
-   `npx eas-cli init` (free account, no build required).
-4. Give Expo permission to deliver through your Firebase project:
-   `npx eas-cli credentials` → Android → push notifications → upload the FCM
-   service account key.
-5. Rebuild the APK. On first launch the app asks for notification permission
-   and registers the device in `push_tokens`.
-
-If you would rather not involve Expo at all, the alternative is a Supabase Edge
-Function holding an FCM service account and calling FCM v1 directly — swap the
-`send_expo_push()` body for a call to it. Expo's service is simply the shortest
-path.
-
-### Known gaps
-
-- Expo replies `DeviceNotRegistered` for tokens belonging to uninstalled apps.
-  The trigger does not read that reply, so a dead token lingers. Tokens are
-  keyed per device and removed on sign-out, so this stays small.
-- Only task completions notify. Friend requests, join requests and challenge
-  invites do not yet.
 
 ---
 

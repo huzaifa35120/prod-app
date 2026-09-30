@@ -1,17 +1,24 @@
 import React, { useEffect, useRef } from 'react';
-import { ActivityIndicator, Animated, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Animated, Easing, Pressable, StyleSheet, Text, View } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+// Direct import: the package root pulls in every icon font family.
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { colors, fonts, radius, spacing } from '../lib/theme';
+import { colors, gradients, radius, spacing } from '../lib/theme';
 import type { Task } from '../lib/types';
 
 /**
- * One checkbox for a day.
- *
- * A full-width row separated by a hairline rather than a floating card — a
- * checklist should read as a list, not as a stack of panels.
+ * One checkbox for a day. The tick springs in so the interaction feels
+ * physical; the pip on the right mirrors the opponent's copy of the task.
  */
 export function TaskRow({
-  task, done, rivalDone, busy, locked, canDelete, onToggle, onDelete,
+  task,
+  done,
+  rivalDone,
+  busy,
+  locked,
+  canDelete,
+  onToggle,
+  onDelete,
 }: {
   task: Task;
   done: boolean;
@@ -26,26 +33,29 @@ export function TaskRow({
 
   useEffect(() => {
     Animated.spring(tick, {
-      toValue: done ? 1 : 0, useNativeDriver: true, speed: 26, bounciness: 6,
+      toValue: done ? 1 : 0,
+      useNativeDriver: true,
+      speed: 20,
+      bounciness: 10,
     }).start();
   }, [done, tick]);
 
-  const scale = tick.interpolate({ inputRange: [0, 1], outputRange: [0.5, 1] });
+  const scale = tick.interpolate({ inputRange: [0, 1], outputRange: [0.4, 1] });
 
   return (
-    <View style={[styles.row, locked && { opacity: 0.45 }]}>
+    <View style={[styles.row, done && styles.rowDone, locked && { opacity: 0.5 }]}>
       <Pressable
         onPress={onToggle}
         disabled={locked || busy}
         style={styles.hit}
-        hitSlop={{ top: 8, bottom: 8 }}
+        hitSlop={{ top: 6, bottom: 6 }}
       >
         <View style={[styles.box, done && styles.boxOn]}>
           {busy ? (
-            <ActivityIndicator size="small" color={done ? colors.accentInk : colors.accent} />
+            <ActivityIndicator size="small" color={done ? colors.greenInk : colors.green} />
           ) : done ? (
             <Animated.View style={{ transform: [{ scale }] }}>
-              <Ionicons name="checkmark-sharp" size={15} color={colors.accentInk} />
+              <Ionicons name="checkmark-sharp" size={17} color={colors.greenInk} />
             </Animated.View>
           ) : null}
         </View>
@@ -55,12 +65,18 @@ export function TaskRow({
         </Text>
       </Pressable>
 
-      {/* rival's copy of this task */}
-      {rivalDone ? <View style={styles.rivalTick} /> : null}
+      {rivalDone ? (
+        <LinearGradient
+          colors={gradients.rival}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.pip}
+        />
+      ) : null}
 
       {canDelete ? (
-        <Pressable onPress={onDelete} hitSlop={12} style={{ padding: 2 }}>
-          <Ionicons name="remove" size={16} color={colors.textFaint} />
+        <Pressable onPress={onDelete} hitSlop={10} style={styles.trash}>
+          <Ionicons name="close" size={16} color={colors.textFaint} />
         </Pressable>
       ) : null}
     </View>
@@ -71,29 +87,35 @@ const styles = StyleSheet.create({
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.md,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.lg,
+    paddingHorizontal: spacing.lg,
     paddingVertical: 15,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.line,
+    marginBottom: spacing.sm,
+    gap: spacing.md,
   },
+  rowDone: { borderColor: colors.greenEdge, backgroundColor: colors.greenDim },
   hit: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, flex: 1 },
   box: {
-    width: 22,
-    height: 22,
-    borderRadius: radius.xs,
-    borderWidth: 1.5,
-    borderColor: colors.textFaint,
+    width: 26,
+    height: 26,
+    borderRadius: 9,
+    borderWidth: 2,
+    borderColor: colors.borderGlow,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  boxOn: { backgroundColor: colors.accent, borderColor: colors.accent },
+  boxOn: { backgroundColor: colors.green, borderColor: colors.green },
   title: {
-    fontFamily: fonts.bodyMd,
+    fontFamily: 'Inter_500Medium',
     fontSize: 15,
     color: colors.text,
     flex: 1,
     lineHeight: 20,
   },
-  titleDone: { color: colors.textFaint, textDecorationLine: 'line-through' },
-  rivalTick: { width: 3, height: 16, backgroundColor: colors.rival },
+  titleDone: { color: colors.green, textDecorationLine: 'line-through' },
+  pip: { width: 9, height: 9, borderRadius: 5 },
+  trash: { padding: 2 },
 });

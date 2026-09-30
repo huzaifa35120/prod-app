@@ -2,13 +2,13 @@ import React, { useCallback, useState } from 'react';
 import { Alert, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 import {
-  Avatar, Body, Button, Card, Field, Loading, Row, Rule, Screen, SectionTitle, Stat,
+  Avatar, Body, Button, Card, Field, H1, H2, Loading, Row, Screen, SectionTitle, StatTile,
 } from '../../components/ui';
 import { useAuth } from '../../lib/auth';
 import { listMyChallenges, updateProfile } from '../../lib/api';
 import { supabase, errorMessage } from '../../lib/supabase';
 import { formatDuration } from '../../lib/format';
-import { colors, fonts, GUTTER, spacing, type } from '../../lib/theme';
+import { colors, spacing } from '../../lib/theme';
 import { displayNameOf, type LeaderboardRow } from '../../lib/types';
 
 interface Stats {
@@ -110,9 +110,8 @@ export default function ProfileTab() {
   return (
     <Screen>
       <ScrollView
-        contentContainerStyle={{ padding: GUTTER, paddingBottom: spacing.xxxl * 2 }}
+        contentContainerStyle={{ padding: spacing.lg, paddingBottom: 60 }}
         keyboardShouldPersistTaps="handled"
-        showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -124,31 +123,31 @@ export default function ProfileTab() {
           />
         }
       >
-        {/* identity, left-aligned like everything else */}
-        <Row style={{ gap: spacing.lg, alignItems: 'center' }}>
-          <Avatar name={displayNameOf(profile)} size={56} />
-          <View style={{ flex: 1 }}>
-            <Text style={type.h1} numberOfLines={1}>
-              {displayNameOf(profile)}
+        <H1>Profile</H1>
+
+        <Card style={{ marginTop: spacing.xl, alignItems: 'center' }}>
+          <Avatar name={displayNameOf(profile)} size={72} />
+          <View style={{ height: spacing.md }} />
+          <H2>{displayNameOf(profile)}</H2>
+          <Text style={styles.handle}>@{profile.username}</Text>
+          {profile.bio ? (
+            <Text style={styles.bio}>{profile.bio}</Text>
+          ) : (
+            <Text style={[styles.bio, { color: colors.textFaint, fontStyle: 'italic' }]}>
+              No bio yet
             </Text>
-            <Text style={styles.handle}>@{profile.username}</Text>
-          </View>
-        </Row>
-
-        {profile.bio ? (
-          <Text style={styles.bio}>{profile.bio}</Text>
-        ) : null}
-
-        <Button
-          title="Edit profile"
-          variant="secondary"
-          small
-          style={{ marginTop: spacing.xl, alignSelf: 'flex-start' }}
-          onPress={beginEdit}
-        />
+          )}
+          <Button
+            title="Edit profile"
+            variant="secondary"
+            small
+            style={{ marginTop: spacing.lg, alignSelf: 'stretch' }}
+            onPress={beginEdit}
+          />
+        </Card>
 
         {editing ? (
-          <Card style={{ marginTop: spacing.xl }}>
+          <Card style={{ marginTop: spacing.md }}>
             <Field
               label="Display name"
               value={displayName}
@@ -159,34 +158,38 @@ export default function ProfileTab() {
               label="Bio"
               value={bio}
               onChangeText={setBio}
-              placeholder="Something short"
+              placeholder="Something short about you"
               multiline
             />
-            <Row style={{ gap: spacing.md }}>
+            <Row style={{ gap: spacing.sm }}>
               <Button title="Save" style={{ flex: 1 }} loading={saving} onPress={save} />
-              <Button title="Cancel" variant="secondary" style={{ flex: 1 }} onPress={() => setEditing(false)} />
+              <Button
+                title="Cancel"
+                variant="secondary"
+                style={{ flex: 1 }}
+                onPress={() => setEditing(false)}
+              />
             </Row>
           </Card>
         ) : null}
 
-        <SectionTitle>Lifetime</SectionTitle>
+        <SectionTitle>Lifetime stats</SectionTitle>
         {stats ? (
-          <View>
-            <Row style={{ paddingBottom: spacing.lg }}>
-              <Stat label="Focused time" value={formatDuration(stats.totalSeconds)} tint={colors.accent} />
-              <Stat label="Days done" value={String(stats.daysComplete)} />
+          <View style={{ gap: spacing.sm }}>
+            <Row style={{ gap: spacing.sm }}>
+              <StatTile label="Focused time" value={formatDuration(stats.totalSeconds)} tint={colors.primary} />
+              <StatTile label="Days done" value={String(stats.daysComplete)} tint={colors.green} />
             </Row>
-            <Rule />
-            <Row style={{ paddingTop: spacing.lg }}>
-              <Stat label="Challenges" value={String(stats.played)} />
-              <Stat label="Won" value={String(stats.won)} tint={stats.won > 0 ? colors.accent : undefined} />
+            <Row style={{ gap: spacing.sm }}>
+              <StatTile label="Challenges" value={String(stats.played)} />
+              <StatTile label="Won" value={String(stats.won)} tint={colors.amber} />
             </Row>
           </View>
         ) : (
           <Body muted>Crunching numbers…</Body>
         )}
 
-        <SectionTitle>Account</SectionTitle>
+        <View style={{ height: spacing.xxl }} />
         <Button
           title="Sign out"
           variant="danger"
@@ -203,17 +206,6 @@ export default function ProfileTab() {
 }
 
 const styles = StyleSheet.create({
-  handle: {
-    fontFamily: fonts.body,
-    fontSize: 13,
-    color: colors.textFaint,
-    marginTop: 3,
-  },
-  bio: {
-    fontFamily: fonts.body,
-    fontSize: 14,
-    lineHeight: 21,
-    color: colors.textDim,
-    marginTop: spacing.lg,
-  },
+  handle: { color: colors.textFaint, fontSize: 13, marginTop: 2 },
+  bio: { color: colors.textDim, fontSize: 14, textAlign: 'center', marginTop: spacing.md, lineHeight: 20 },
 });
