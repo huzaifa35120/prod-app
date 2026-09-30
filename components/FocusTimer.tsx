@@ -34,6 +34,9 @@ export function FocusTimer({
   myLoggedToday,
   theirLoggedToday,
   rivalName,
+  challengeId,
+  challengeTitle,
+  dayNumber,
   onLog,
 }: {
   storageKey: string;
@@ -41,9 +44,16 @@ export function FocusTimer({
   myLoggedToday: number;
   theirLoggedToday: number;
   rivalName?: string;
+  /** Context for the ongoing notification's title and deep link. */
+  challengeId: string;
+  challengeTitle: string;
+  dayNumber: number;
   onLog: (seconds: number) => Promise<void>;
 }) {
-  const { elapsed, running, hydrated, start, pause, reset, addSeconds } = useStopwatch(storageKey);
+  const { elapsed, running, hydrated, start, pause, reset, addSeconds } = useStopwatch(
+    storageKey,
+    { challengeId, challengeTitle, dayNumber }
+  );
   const [saving, setSaving] = useState(false);
 
   // Scale the ring to the screen so it never crowds a small phone.

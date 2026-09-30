@@ -1,94 +1,99 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { AppState } from 'react-native';
+import {
+  addOf, elapsedOf, IDLE, pauseOf, readTimer, startOf, writeTimer,
+  type ActiveTimer, type TimerState,
+} from './timerState';
+import {
+  clearTimerNotification, onTimerChangedExternally, showTimerNotification,
+} from './timerNotification';
 
-interface TimerState {
-  running: boolean;
-  /** Epoch ms when the current run began, or null while paused. */
-  startedAt: number | null;
-  /** Seconds banked from previous runs. */
-  accumulated: number;
-}
-
-const IDLE: TimerState = { running: false, startedAt: null, accumulated: 0 };
+type Meta = Omit<ActiveTimer, 'storageKey'>;
 
 /**
- * A stopwatch that survives backgrounding and app restarts.
+ * A stopwatch that survives backgrounding and app restarts, and mirrors
+ * itself into an ongoing Android notification with Pause/Resume/Stop.
  *
- * Elapsed time is derived from wall-clock timestamps rather than counted
- * ticks, so time that passes while the app is suspended still counts and
- * a dropped interval can never lose seconds.
+ * The notification's buttons write to the same AsyncStorage entry this hook
+ * reads, so the two can never disagree: whoever changed it last wins, and the
+ * hook re-reads whenever it regains focus.
  */
-export function useStopwatch(storageKey: string) {
+export function useStopwatch(storageKey: string, meta?: Meta) {
   const [state, setState] = useState<TimerState>(IDLE);
   const [hydrated, setHydrated] = useState(false);
   const [, setTick] = useState(0);
-  const keyRef = useRef(storageKey);
+  const metaRef = useRef<Meta | undefined>(meta);
+  metaRef.current = meta;
 
-  // Load any timer that was left running for this day.
+  // Load whatever was left for this day.
   useEffect(() => {
     let alive = true;
-    keyRef.current = storageKey;
     setHydrated(false);
     setState(IDLE);
 
-    AsyncStorage.getItem(storageKey)
-      .then((raw) => {
-        if (!alive) return;
-        if (raw) {
-          try {
-            const parsed = JSON.parse(raw) as TimerState;
-            if (typeof parsed.accumulated === 'number') setState(parsed);
-          } catch {
-            // Corrupt entry: fall back to a fresh timer.
-          }
-        }
-        setHydrated(true);
-      })
-      .catch(() => setHydrated(true));
+    readTimer(storageKey).then((s) => {
+      if (!alive) return;
+      setState(s);
+      setHydrated(true);
+    });
 
     return () => {
       alive = false;
     };
   }, [storageKey]);
 
-  // Persist after every change, but never before hydration (that would
-  // clobber a saved timer with the empty initial state).
+  // Persist after every change, but never before hydration — that would
+  // clobber a saved timer with the empty initial state.
   useEffect(() => {
     if (!hydrated) return;
-    void AsyncStorage.setItem(storageKey, JSON.stringify(state)).catch(() => {});
+    void writeTimer(storageKey, state);
   }, [storageKey, state, hydrated]);
 
-  // Re-render once a second while running so the clock advances.
+  // Keep the notification in step with the timer.
+  useEffect(() => {
+    if (!hydrated) return;
+    const m = metaRef.current;
+    if (!m) return;
+
+    const elapsed = elapsedOf(state);
+    if (state.running || elapsed > 0) {
+      void showTimerNotification({ ...m, storageKey }, state);
+    } else {
+      void clearTimerNotification();
+    }
+  }, [state, hydrated, storageKey]);
+
+  // The notification's buttons mutate storage directly; adopt their result.
+  useEffect(() => {
+    return onTimerChangedExternally((key, next) => {
+      if (key === storageKey) setState(next);
+    });
+  }, [storageKey]);
+
+  // Coming back to the foreground, storage may be newer than our state.
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (s) => {
+      if (s === 'active') void readTimer(storageKey).then(setState);
+    });
+    return () => sub.remove();
+  }, [storageKey]);
+
+  // Re-render once a second while running so the on-screen clock advances.
   useEffect(() => {
     if (!state.running) return;
     const id = setInterval(() => setTick((n) => n + 1), 1000);
     return () => clearInterval(id);
   }, [state.running]);
 
-  const elapsed = Math.floor(
-    state.accumulated + (state.running && state.startedAt ? (Date.now() - state.startedAt) / 1000 : 0)
-  );
+  const elapsed = elapsedOf(state);
 
-  const start = useCallback(() => {
-    setState((s) => (s.running ? s : { ...s, running: true, startedAt: Date.now() }));
+  const start = useCallback(() => setState(startOf), []);
+  const pause = useCallback(() => setState(pauseOf), []);
+  const reset = useCallback(() => {
+    setState(IDLE);
+    void clearTimerNotification();
   }, []);
-
-  const pause = useCallback(() => {
-    setState((s) => {
-      if (!s.running || !s.startedAt) return s;
-      return {
-        running: false,
-        startedAt: null,
-        accumulated: s.accumulated + (Date.now() - s.startedAt) / 1000,
-      };
-    });
-  }, []);
-
-  const reset = useCallback(() => setState(IDLE), []);
-
-  const addSeconds = useCallback((seconds: number) => {
-    setState((s) => ({ ...s, accumulated: s.accumulated + seconds }));
-  }, []);
+  const addSeconds = useCallback((seconds: number) => setState((s) => addOf(s, seconds)), []);
 
   return { elapsed, running: state.running, hydrated, start, pause, reset, addSeconds };
 }

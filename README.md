@@ -43,13 +43,19 @@ project, and wait for it to finish provisioning (about two minutes).
 
 ### 2. Create the database
 
-In the dashboard, open **SQL Editor → New query**. Paste the entire contents of
-[`supabase/migrations/0001_init.sql`](supabase/migrations/0001_init.sql) and
-press **Run**.
+In the dashboard, open **SQL Editor → New query**. Run the migrations in order,
+one query at a time:
 
-That one script creates every table, the row-level-security policies, the
+1. [`supabase/migrations/0001_init.sql`](supabase/migrations/0001_init.sql) —
+   tables, RLS, triggers, stats views, RPCs.
+2. [`supabase/migrations/0002_tasks_lock_notifications.sql`](supabase/migrations/0002_tasks_lock_notifications.sql)
+   — challenge-wide task seeding, the end-of-challenge lock, and push.
+
+`0002` is safe to run on a database that already has `0001`.
+
+Between them these create every table, the row-level-security policies, the
 triggers that generate profiles and challenge days, the stats views and the
-RPCs. You should see "Success. No rows returned".
+RPCs. Each should report "Success. No rows returned".
 
 ### 3. Turn off email confirmation (recommended while testing)
 
@@ -155,6 +161,7 @@ scripts/verify-schema.mjs           schema verification
 | `task_completions` | One row per (task, user). This is what "ticked" means. |
 | `focus_sessions` | Logged productivity time, per user per day. |
 | `challenge_join_requests` | Requests to take the open slot. |
+| `push_tokens` | One row per signed-in device, so the opponent can be notified. |
 
 Two views do the aggregation:
 
@@ -171,6 +178,12 @@ Two views do the aggregation:
   filling the opponent slot, so two people racing for it cannot both win.
 - **Future days are read-only.** You cannot tick tasks or log time for a day
   that has not started yet. The creator can still add tasks ahead of time.
+- **A finished challenge is frozen.** Once the last day has passed, tasks,
+  ticks and logged time can no longer change — enforced by database triggers,
+  not just the UI, so it holds even against a direct API call. Past days stay
+  fully editable *while* the challenge is still running.
+- **The starting checklist is set at creation** and copied onto every day. The
+  creator can still add or remove tasks on an individual day afterwards.
 - **The timer stores timestamps, not ticks.** Elapsed time is computed from
   wall-clock times, so backgrounding or force-quitting the app does not lose
   seconds. Nothing reaches the database until you tap *Log it*.
@@ -231,6 +244,79 @@ Metro cannot tree-shake `require()`d assets, so importing from the root ships
 every weight and every icon family. Keeping the direct paths cut the bundle from
 42 font files to 8. Follow the same pattern if you add a weight or a second icon
 set.
+
+---
+
+## Notifications
+
+There are two separate things here, and they have very different requirements.
+
+### The productivity timer in the notification shade
+
+While a timer is running the app posts an **ongoing notification** with
+**Pause / Resume / Stop** buttons. Pressing one changes the same stored timer
+the app reads, so the screen and the shade can never disagree.
+
+Two deliberate choices:
+
+- It shows **when the run started** ("Running since 14:32") rather than a count
+  of elapsed seconds. Android only redraws a notification when the app replaces
+  it, so an elapsed figure would quietly go stale while the shade sat untouched;
+  a start time stays true no matter how long it sits there.
+- The buttons **bring the app to the front**. The timer is timestamp-based, so
+  a pause that arrived late would over-count. Opening the app guarantees the
+  change is applied at the moment you pressed it.
+
+A live per-second counter in the shade needs Android's notification
+*chronometer*, which `expo-notifications` does not expose. Reaching it means a
+third-party native module; the one that does this (`notifee`) has not been
+published since December 2024 and predates the New Architecture this app runs
+on, so it was not worth the risk.
+
+**iOS shows no timer notification.** A live-updating one there requires Live
+Activities (ActivityKit), which is a native widget extension in Swift. The app
+is Android-only today, so this is not a practical limitation.
+
+### Push when your opponent ticks a task
+
+The server half is **done and verified**: ticking a task fires a Postgres
+trigger that calls Expo's push service through `pg_net`, addressed to the
+opponent's registered devices. It sends "… ticked a task", or "… finished day
+N 🟩" when that tick completes their day. Tapping it opens that exact day.
+
+Every send is wrapped so a notification problem can never roll back the tick
+that caused it — verified with a missing extension, no registered device, and
+a solo challenge.
+
+**To actually receive them you need Firebase**, because all Android push is
+delivered by FCM. There is no way around this; it is an OS-level requirement,
+not a choice this app made. Until it is set up, `usePushRegistration` reports
+`unavailable` and the app works normally without notifications.
+
+1. Create a free Firebase project and add an Android app with the package name
+   `com.challengeapp.mobile`.
+2. Download `google-services.json` into the project root, then point at it:
+   `"android": { "googleServicesFile": "./google-services.json" }` in app.json.
+3. Create an Expo project id so a push token can be issued:
+   `npx eas-cli init` (free account, no build required).
+4. Give Expo permission to deliver through your Firebase project:
+   `npx eas-cli credentials` → Android → push notifications → upload the FCM
+   service account key.
+5. Rebuild the APK. On first launch the app asks for notification permission
+   and registers the device in `push_tokens`.
+
+If you would rather not involve Expo at all, the alternative is a Supabase Edge
+Function holding an FCM service account and calling FCM v1 directly — swap the
+`send_expo_push()` body for a call to it. Expo's service is simply the shortest
+path.
+
+### Known gaps
+
+- Expo replies `DeviceNotRegistered` for tokens belonging to uninstalled apps.
+  The trigger does not read that reply, so a dead token lingers. Tokens are
+  keyed per device and removed on sign-out, so this stays small.
+- Only task completions notify. Friend requests, join requests and challenge
+  invites do not yet.
 
 ---
 

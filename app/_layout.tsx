@@ -16,7 +16,10 @@ import { Inter_400Regular } from '@expo-google-fonts/inter/400Regular';
 import { Inter_500Medium } from '@expo-google-fonts/inter/500Medium';
 import { Inter_600SemiBold } from '@expo-google-fonts/inter/600SemiBold';
 import { Inter_700Bold } from '@expo-google-fonts/inter/700Bold';
+import * as Notifications from 'expo-notifications';
 import { AuthProvider, useAuth } from '../lib/auth';
+import { usePushRegistration } from '../lib/usePushRegistration';
+import { registerTimerNotificationHandlers } from '../lib/timerNotification';
 import { isSupabaseConfigured } from '../lib/supabase';
 import { colors, fonts } from '../lib/theme';
 import { Loading } from '../components/ui';
@@ -25,10 +28,33 @@ import SetupNotice from '../components/SetupNotice';
 // Hold the splash until the fonts are in memory, so nothing renders unstyled.
 void SplashScreen.preventAutoHideAsync();
 
+// Module scope on purpose: the timer notification's buttons must work even
+// when the app is not running, and the handler has to be registered before
+// the headless task starts.
+registerTimerNotificationHandlers();
+
 function RootNavigator() {
   const { session, initializing } = useAuth();
   const segments = useSegments();
   const router = useRouter();
+
+  usePushRegistration(session?.user?.id ?? null);
+
+  // Tapping a push about the opponent opens the day it refers to.
+  useEffect(() => {
+    const sub = Notifications.addNotificationResponseReceivedListener((response) => {
+      const data = response.notification.request.content.data as
+        | { challengeId?: string; dayNumber?: number | string }
+        | undefined;
+      if (!data?.challengeId) return;
+      router.push(
+        data.dayNumber != null
+          ? `/challenge/${data.challengeId}/day/${data.dayNumber}`
+          : `/challenge/${data.challengeId}`
+      );
+    });
+    return () => sub.remove();
+  }, [router]);
 
   useEffect(() => {
     if (initializing) return;

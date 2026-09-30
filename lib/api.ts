@@ -128,16 +128,29 @@ export async function getChallenge(id: string): Promise<ChallengeWithPeople | nu
 }
 
 export interface NewChallenge {
-  creator_id: string;
   title: string;
   description: string | null;
   day_count: number;
   start_date: string;
   is_public: boolean;
+  /** Applied to every single day of the challenge. */
+  tasks: string[];
 }
 
+/**
+ * Creates the challenge and seeds the same checklist onto every day, in one
+ * transaction. Doing it server-side means a 30-day challenge with 4 tasks is
+ * a single call rather than 120 inserts.
+ */
 export async function createChallenge(input: NewChallenge): Promise<Challenge> {
-  const res = await supabase.from('challenges').insert(input).select('*').single();
+  const res = await supabase.rpc('create_challenge_with_tasks', {
+    p_title: input.title,
+    p_description: input.description,
+    p_day_count: input.day_count,
+    p_start_date: input.start_date,
+    p_is_public: input.is_public,
+    p_tasks: input.tasks,
+  });
   return unwrap(res) as Challenge;
 }
 
@@ -367,4 +380,34 @@ export async function getLeaderboards(challengeIds: string[]): Promise<Leaderboa
     .select('*')
     .in('challenge_id', challengeIds);
   return (unwrap(res) as LeaderboardRow[]) ?? [];
+}
+
+
+/* ------------------------------------------------------------------ */
+/*  Push tokens                                                        */
+/* ------------------------------------------------------------------ */
+
+/** Registers this device so the opponent's ticks can reach it. */
+export async function savePushToken(
+  userId: string,
+  token: string,
+  platform: string
+): Promise<void> {
+  const { error } = await supabase
+    .from('push_tokens')
+    .upsert(
+      { user_id: userId, token, platform, updated_at: new Date().toISOString() },
+      { onConflict: 'user_id,token' }
+    );
+  if (error) throw error;
+}
+
+/** Drops this device's token, so a signed-out phone stops being notified. */
+export async function removePushToken(userId: string, token: string): Promise<void> {
+  const { error } = await supabase
+    .from('push_tokens')
+    .delete()
+    .eq('user_id', userId)
+    .eq('token', token);
+  if (error) throw error;
 }

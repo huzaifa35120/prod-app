@@ -18,7 +18,7 @@ import {
   listTasks, logFocusSession, setTaskDone, deleteFocusSession,
 } from '../../../../lib/api';
 import { supabase, errorMessage } from '../../../../lib/supabase';
-import { formatDate, formatDuration, todayKey } from '../../../../lib/format';
+import { challengePhase, formatDate, formatDuration, todayKey } from '../../../../lib/format';
 import { colors, radius, spacing } from '../../../../lib/theme';
 import {
   displayNameOf,
@@ -116,10 +116,17 @@ export default function DayScreen() {
   );
 
   const isFuture = day ? day.day_date > todayKey() : false;
+  // Once the last day has passed the whole challenge freezes — the database
+  // rejects these writes too, so the UI just avoids offering them.
+  const isOver = challenge
+    ? challenge.status === 'completed' ||
+      challengePhase(challenge.start_date, challenge.end_date) === 'finished'
+    : false;
+  const locked = isFuture || isOver;
   const allDone = tasks.length > 0 && myDone.size === tasks.length;
 
   async function toggle(task: Task) {
-    if (!user || !challenge || isFuture) return;
+    if (!user || !challenge || locked) return;
     const on = !myDone.has(task.id);
     setTogglingId(task.id);
     // Optimistic: the checkbox flips immediately, then reconciles with the server.
@@ -228,7 +235,9 @@ export default function DayScreen() {
               <View style={{ height: 2 }} />
               <Hero>Day {day.day_number}</Hero>
             </View>
-            {allDone ? (
+            {isOver ? (
+              <Badge label="Finished" tone="rival" />
+            ) : allDone ? (
               <Badge label="Complete" tone="green" dot />
             ) : isFuture ? (
               <Badge label="Locked" tone="neutral" />
@@ -256,7 +265,17 @@ export default function DayScreen() {
             </View>
           ) : null}
 
-          {isFuture ? (
+          {isOver ? (
+            <Card style={{ marginTop: spacing.lg, backgroundColor: colors.surfaceHi }}>
+              <Row style={{ gap: spacing.md }}>
+                <Ionicons name="lock-closed" size={16} color={colors.rival} />
+                <Body muted size={13}>
+                  This challenge ended on {formatDate(challenge.end_date)}. Tasks, ticks and
+                  logged time are final and can no longer be changed.
+                </Body>
+              </Row>
+            </Card>
+          ) : isFuture ? (
             <Card style={{ marginTop: spacing.lg, backgroundColor: colors.surfaceHi }}>
               <Row style={{ gap: spacing.md }}>
                 <Ionicons name="lock-closed-outline" size={16} color={colors.textFaint} />
@@ -297,15 +316,15 @@ export default function DayScreen() {
                 done={myDone.has(task.id)}
                 rivalDone={theirDone.has(task.id)}
                 busy={togglingId === task.id}
-                locked={!amParticipant || isFuture}
-                canDelete={Boolean(amCreator)}
+                locked={!amParticipant || locked}
+                canDelete={Boolean(amCreator) && !isOver}
                 onToggle={() => toggle(task)}
                 onDelete={() => confirmDeleteTask(task)}
               />
             ))
           )}
 
-          {amCreator ? (
+          {amCreator && !isOver ? (
             <Row style={{ gap: spacing.sm, marginTop: spacing.md }}>
               <TextInput
                 value={newTask}
@@ -327,10 +346,13 @@ export default function DayScreen() {
               <SectionTitle>Productivity timer</SectionTitle>
               <FocusTimer
                 storageKey={`timer:${challenge.id}:${day.id}`}
-                disabled={isFuture}
+                disabled={locked}
                 myLoggedToday={mySeconds}
                 theirLoggedToday={theirSeconds}
                 rivalName={challenge.opponent_id ? displayNameOf(opponentProfile) : undefined}
+                challengeId={challenge.id}
+                challengeTitle={challenge.title}
+                dayNumber={day.day_number}
                 onLog={onLogTime}
               />
 

@@ -42,6 +42,14 @@
           "resizeMode": "contain",
           "backgroundColor": "#07090E"
         }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/notification-icon.png",
+          "color": "#7C93FF",
+          "defaultChannel": "challenge-events"
+        }
       ]
     ],
     "backgroundColor": "#07090E"

@@ -1,11 +1,11 @@
 import React, { useMemo, useState } from 'react';
 import {
-  Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Switch, Text, View,
+  Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 // Direct import: the package root pulls in every icon font family.
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { Body, Button, Card, Field, H2, Row, Screen } from '../../components/ui';
+import { Body, Button, Caption, Card, Field, H2, Row, Screen } from '../../components/ui';
 import { DateField } from '../../components/DateField';
 import { useAuth } from '../../lib/auth';
 import { createChallenge } from '../../lib/api';
@@ -14,6 +14,17 @@ import { addDays, formatDate, toDateKey } from '../../lib/format';
 import { colors, radius, spacing } from '../../lib/theme';
 
 const DAY_PRESETS = [7, 14, 21, 30, 60, 90];
+
+const TASK_SUGGESTIONS = [
+  'No phone before noon',
+  '2h deep work',
+  'Gym or a run',
+  'Read 20 pages',
+  'In bed by 11',
+  '3L of water',
+];
+
+const MAX_TASKS = 20;
 
 export default function NewChallenge() {
   const { user } = useAuth();
@@ -24,9 +35,30 @@ export default function NewChallenge() {
   const [dayCount, setDayCount] = useState(30);
   const [startDate, setStartDate] = useState(new Date());
   const [isPublic, setIsPublic] = useState(true);
+  const [tasks, setTasks] = useState<string[]>([]);
+  const [taskDraft, setTaskDraft] = useState('');
   const [busy, setBusy] = useState(false);
 
   const endDate = useMemo(() => addDays(startDate, dayCount - 1), [startDate, dayCount]);
+
+  function addTask(raw: string) {
+    const title = raw.trim();
+    if (!title) return;
+    if (tasks.length >= MAX_TASKS) {
+      Alert.alert('That is plenty', `A challenge can start with up to ${MAX_TASKS} daily tasks.`);
+      return;
+    }
+    if (tasks.some((t) => t.toLowerCase() === title.toLowerCase())) {
+      setTaskDraft('');
+      return;
+    }
+    setTasks((prev) => [...prev, title.slice(0, 140)]);
+    setTaskDraft('');
+  }
+
+  function removeTask(index: number) {
+    setTasks((prev) => prev.filter((_, i) => i !== index));
+  }
 
   async function submit() {
     if (!user) return;
@@ -42,12 +74,12 @@ export default function NewChallenge() {
     setBusy(true);
     try {
       const created = await createChallenge({
-        creator_id: user.id,
         title: title.trim(),
         description: description.trim() || null,
         day_count: dayCount,
         start_date: toDateKey(startDate),
         is_public: isPublic,
+        tasks,
       });
       router.replace(`/challenge/${created.id}`);
     } catch (e) {
@@ -113,6 +145,62 @@ export default function NewChallenge() {
           <Text style={styles.label}>Start date</Text>
           <DateField value={startDate} onChange={setStartDate} />
 
+          {/* ---- daily checklist, applied to every day ---- */}
+          <View style={{ height: spacing.xl }} />
+          <Row style={{ justifyContent: 'space-between', marginBottom: spacing.sm }}>
+            <Text style={styles.label}>Daily tasks</Text>
+            <Text style={styles.counter}>
+              {tasks.length}/{MAX_TASKS}
+            </Text>
+          </Row>
+          <Caption style={{ marginBottom: spacing.md }}>
+            These go onto all {dayCount} days. You can still add or remove tasks on an
+            individual day afterwards.
+          </Caption>
+
+          {tasks.map((t, i) => (
+            <Row key={`${t}-${i}`} style={styles.taskRow}>
+              <View style={styles.taskDot} />
+              <Text style={styles.taskText} numberOfLines={2}>
+                {t}
+              </Text>
+              <Pressable onPress={() => removeTask(i)} hitSlop={10}>
+                <Ionicons name="close" size={16} color={colors.textFaint} />
+              </Pressable>
+            </Row>
+          ))}
+
+          <Row style={{ gap: spacing.sm, marginTop: tasks.length ? spacing.sm : 0 }}>
+            <TextInput
+              value={taskDraft}
+              onChangeText={setTaskDraft}
+              placeholder="e.g. 2h of focused work"
+              placeholderTextColor={colors.textFaint}
+              style={styles.taskInput}
+              maxLength={140}
+              onSubmitEditing={() => addTask(taskDraft)}
+              returnKeyType="done"
+              blurOnSubmit={false}
+            />
+            <Button
+              title="Add"
+              small
+              disabled={!taskDraft.trim() || tasks.length >= MAX_TASKS}
+              onPress={() => addTask(taskDraft)}
+            />
+          </Row>
+
+          {tasks.length === 0 ? (
+            <Row style={{ flexWrap: 'wrap', gap: spacing.sm, marginTop: spacing.md }}>
+              {TASK_SUGGESTIONS.map((sug) => (
+                <Pressable key={sug} onPress={() => addTask(sug)} style={styles.suggestion}>
+                  <Ionicons name="add" size={13} color={colors.textDim} />
+                  <Text style={styles.suggestionText}>{sug}</Text>
+                </Pressable>
+              ))}
+            </Row>
+          ) : null}
+
           <Card style={{ marginTop: spacing.lg }}>
             <Row style={{ justifyContent: 'space-between' }}>
               <View style={{ flex: 1, marginRight: spacing.md }}>
@@ -151,7 +239,9 @@ export default function NewChallenge() {
           <Button title="Create challenge" onPress={submit} loading={busy} />
           <View style={{ height: spacing.md }} />
           <Body muted size={12} center>
-            You will be able to add the daily tasks and invite an opponent next.
+            {tasks.length > 0
+              ? `${tasks.length} ${tasks.length === 1 ? 'task' : 'tasks'} × ${dayCount} days. You can invite an opponent next.`
+              : 'You can add the daily tasks and invite an opponent next.'}
           </Body>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -188,6 +278,43 @@ const styles = StyleSheet.create({
   chipText: { color: colors.textDim, fontSize: 13, fontWeight: '600' },
   chipTextActive: { color: colors.primary },
   dayCount: { color: colors.text, fontSize: 18, fontWeight: '800', minWidth: 40, textAlign: 'center' },
+  counter: { color: colors.textFaint, fontFamily: 'Inter_600SemiBold', fontSize: 12 },
+  taskRow: {
+    gap: spacing.md,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.md,
+    marginBottom: spacing.sm,
+  },
+  taskDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: colors.primary },
+  taskText: { flex: 1, color: colors.text, fontFamily: 'Inter_500Medium', fontSize: 14 },
+  taskInput: {
+    flex: 1,
+    backgroundColor: colors.surfaceHi,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.md,
+    color: colors.text,
+    fontFamily: 'Inter_500Medium',
+    fontSize: 15,
+  },
+  suggestion: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingVertical: 7,
+    paddingHorizontal: spacing.md,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    borderColor: colors.borderHi,
+  },
+  suggestionText: { color: colors.textDim, fontFamily: 'Inter_500Medium', fontSize: 12.5 },
   stepper: {
     width: 32,
     height: 32,
