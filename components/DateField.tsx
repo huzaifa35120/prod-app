@@ -3,7 +3,7 @@ import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 // Direct import: the package root pulls in every icon font family.
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { colors, radius, spacing } from '../lib/theme';
+import { colors, fonts, radius, spacing } from '../lib/theme';
 import { formatDate, toDateKey } from '../lib/format';
 
 /**
@@ -25,7 +25,7 @@ export function DateField({
     <View>
       {Platform.OS === 'android' ? (
         <Pressable style={styles.button} onPress={() => setOpen(true)}>
-          <Ionicons name="calendar-outline" size={18} color={colors.primary} />
+          <Ionicons name="calendar-outline" size={18} color={colors.accent} />
           <Text style={styles.buttonText}>{formatDate(toDateKey(value))}</Text>
         </Pressable>
       ) : null}
@@ -54,12 +54,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.md,
-    backgroundColor: colors.surfaceHi,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.md,
-    padding: spacing.lg,
+    borderBottomWidth: 1.5,
+    borderBottomColor: colors.line,
+    paddingVertical: spacing.md,
   },
-  buttonText: { color: colors.text, fontSize: 15, fontWeight: '600' },
+  buttonText: { color: colors.text, fontSize: 17, fontFamily: fonts.bodyMd },
   iosWrap: { alignSelf: 'flex-start' },
 });

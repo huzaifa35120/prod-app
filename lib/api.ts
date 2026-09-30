@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { todayKey } from './format';
 import type {
   Challenge,
   ChallengeDay,
@@ -410,4 +411,102 @@ export async function removePushToken(userId: string, token: string): Promise<vo
     .eq('user_id', userId)
     .eq('token', token);
   if (error) throw error;
+}
+
+/* ------------------------------------------------------------------ */
+/*  Today                                                              */
+/* ------------------------------------------------------------------ */
+
+export interface TodayEntry {
+  challenge: ChallengeWithPeople;
+  day: ChallengeDay;
+  tasks: Task[];
+  /** Task ids I have ticked. */
+  myDone: Set<string>;
+  rivalDone: Set<string>;
+  /** Seconds logged today. */
+  mySeconds: number;
+  rivalSeconds: number;
+  /** Seconds logged across the whole challenge. */
+  myTotal: number;
+  rivalTotal: number;
+}
+
+/**
+ * Everything needed to tick today's boxes without opening a challenge.
+ *
+ * Batched rather than per-challenge: one round trip per table, filtered by
+ * `in`, so a player in three challenges still costs six queries, not
+ * eighteen.
+ */
+export async function getToday(userId: string): Promise<TodayEntry[]> {
+  const mine = await listMyChallenges(userId);
+
+  const today = todayKey();
+  const live = mine.filter(
+    (c) =>
+      c.opponent_id &&
+      c.status !== 'cancelled' &&
+      c.start_date <= today &&
+      c.end_date >= today
+  );
+  if (live.length === 0) return [];
+
+  const ids = live.map((c) => c.id);
+
+  const daysRes = await supabase
+    .from('challenge_days')
+    .select('*')
+    .in('challenge_id', ids)
+    .eq('day_date', today);
+  const days = (unwrap(daysRes) as ChallengeDay[]) ?? [];
+  if (days.length === 0) return [];
+
+  const dayIds = days.map((d) => d.id);
+
+  const [tasksRes, focusRes, boardRows] = await Promise.all([
+    supabase.from('tasks').select('*').in('day_id', dayIds).order('position', { ascending: true }),
+    supabase.from('focus_sessions').select('*').in('day_id', dayIds),
+    getLeaderboards(ids),
+  ]);
+
+  const tasks = (unwrap(tasksRes) as Task[]) ?? [];
+  const focus = (unwrap(focusRes) as FocusSession[]) ?? [];
+  const completions = await listCompletions(tasks.map((t) => t.id));
+
+  return live
+    .map((challenge) => {
+      const day = days.find((d) => d.challenge_id === challenge.id);
+      if (!day) return null;
+
+      const rivalId =
+        challenge.creator_id === userId ? challenge.opponent_id : challenge.creator_id;
+
+      const dayTasks = tasks.filter((t) => t.day_id === day.id);
+      const taskIds = new Set(dayTasks.map((t) => t.id));
+
+      const secondsFor = (uid: string | null) =>
+        focus
+          .filter((f) => f.day_id === day.id && f.user_id === uid)
+          .reduce((sum, f) => sum + f.seconds, 0);
+
+      const board = boardRows.filter((r) => r.challenge_id === challenge.id);
+
+      return {
+        challenge,
+        day,
+        tasks: dayTasks,
+        myDone: new Set(
+          completions.filter((c) => c.user_id === userId && taskIds.has(c.task_id)).map((c) => c.task_id)
+        ),
+        rivalDone: new Set(
+          completions.filter((c) => c.user_id === rivalId && taskIds.has(c.task_id)).map((c) => c.task_id)
+        ),
+        mySeconds: secondsFor(userId),
+        rivalSeconds: secondsFor(rivalId),
+        myTotal: Number(board.find((r) => r.user_id === userId)?.total_seconds ?? 0),
+        rivalTotal: Number(board.find((r) => r.user_id === rivalId)?.total_seconds ?? 0),
+      } satisfies TodayEntry;
+    })
+    .filter((x): x is TodayEntry => x !== null);
 }

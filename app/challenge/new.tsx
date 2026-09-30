@@ -11,7 +11,7 @@ import { useAuth } from '../../lib/auth';
 import { createChallenge } from '../../lib/api';
 import { errorMessage } from '../../lib/supabase';
 import { addDays, formatDate, toDateKey } from '../../lib/format';
-import { colors, radius, spacing } from '../../lib/theme';
+import { colors, fonts, radius, spacing, type } from '../../lib/theme';
 
 const DAY_PRESETS = [7, 14, 21, 30, 60, 90];
 
@@ -131,16 +131,16 @@ export default function NewChallenge() {
             ))}
           </Row>
 
-          <Card style={{ marginBottom: spacing.lg }}>
+          <View style={styles.customRow}>
             <Row style={{ justifyContent: 'space-between' }}>
-              <Body muted>Custom length</Body>
+              <Text style={type.eyebrow}>Custom</Text>
               <Row style={{ gap: spacing.md }}>
                 <Stepper icon="remove" onPress={() => setDayCount((d) => Math.max(1, d - 1))} />
                 <Text style={styles.dayCount}>{dayCount}</Text>
                 <Stepper icon="add" onPress={() => setDayCount((d) => Math.min(365, d + 1))} />
               </Row>
             </Row>
-          </Card>
+          </View>
 
           <Text style={styles.label}>Start date</Text>
           <DateField value={startDate} onChange={setStartDate} />
@@ -207,15 +207,16 @@ export default function NewChallenge() {
                 <H2>Visible to everyone</H2>
                 <Body muted size={13}>
                   {isPublic
-                    ? 'Anyone can find this on Discover and ask to join.'
+                    ? 'Anyone can find this under Browse and ask to join.'
                     : 'Only people with your invite link can join.'}
                 </Body>
               </View>
               <Switch
                 value={isPublic}
                 onValueChange={setIsPublic}
-                trackColor={{ true: colors.primary, false: colors.border }}
-                thumbColor={colors.text}
+                trackColor={{ true: colors.accent, false: colors.surfaceMax }}
+                thumbColor={isPublic ? colors.accentInk : colors.textDim}
+                ios_backgroundColor={colors.surfaceMax}
               />
             </Row>
           </Card>
@@ -259,69 +260,67 @@ function Stepper({ icon, onPress }: { icon: 'add' | 'remove'; onPress: () => voi
 
 const styles = StyleSheet.create({
   label: {
-    color: colors.textDim,
-    fontSize: 12,
-    fontWeight: '700',
-    textTransform: 'uppercase',
-    letterSpacing: 0.8,
+    ...type.eyebrow,
     marginBottom: spacing.sm,
   },
   chip: {
-    paddingVertical: spacing.sm,
+    paddingVertical: 9,
     paddingHorizontal: spacing.lg,
-    borderRadius: radius.pill,
+    borderRadius: radius.sm,
     borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surfaceHi,
+    borderColor: colors.line,
   },
-  chipActive: { backgroundColor: colors.primaryDim, borderColor: colors.primary },
-  chipText: { color: colors.textDim, fontSize: 13, fontWeight: '600' },
-  chipTextActive: { color: colors.primary },
-  dayCount: { color: colors.text, fontSize: 18, fontWeight: '800', minWidth: 40, textAlign: 'center' },
-  counter: { color: colors.textFaint, fontFamily: 'Inter_600SemiBold', fontSize: 12 },
+  chipActive: { backgroundColor: colors.accent, borderColor: colors.accent },
+  chipText: {
+    color: colors.textDim,
+    fontFamily: fonts.bodySemi,
+    fontSize: 12,
+    letterSpacing: 0.6,
+  },
+  chipTextActive: { color: colors.accentInk },
+  dayCount: { color: colors.text, fontFamily: fonts.display, fontSize: 20, minWidth: 44, textAlign: 'center', fontVariant: ['tabular-nums'] },
+  counter: { color: colors.textFaint, fontFamily: fonts.bodySemi, fontSize: 12 },
   taskRow: {
     gap: spacing.md,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.md,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.md,
-    marginBottom: spacing.sm,
+    paddingVertical: 13,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.line,
   },
-  taskDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: colors.primary },
-  taskText: { flex: 1, color: colors.text, fontFamily: 'Inter_500Medium', fontSize: 14 },
+  taskDot: { width: 3, height: 14, backgroundColor: colors.accent },
+  taskText: { flex: 1, color: colors.text, fontFamily: fonts.bodyMd, fontSize: 14 },
   taskInput: {
     flex: 1,
-    backgroundColor: colors.surfaceHi,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.md,
-    paddingHorizontal: spacing.md,
+    borderBottomWidth: 1.5,
+    borderBottomColor: colors.line,
     paddingVertical: spacing.md,
     color: colors.text,
-    fontFamily: 'Inter_500Medium',
+    fontFamily: fonts.bodyMd,
     fontSize: 15,
   },
   suggestion: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    paddingVertical: 7,
+    gap: 5,
+    paddingVertical: 8,
     paddingHorizontal: spacing.md,
-    borderRadius: radius.pill,
+    borderRadius: radius.sm,
     borderWidth: 1,
-    borderStyle: 'dashed',
-    borderColor: colors.borderHi,
+    borderColor: colors.line,
   },
-  suggestionText: { color: colors.textDim, fontFamily: 'Inter_500Medium', fontSize: 12.5 },
+  suggestionText: { color: colors.textDim, fontFamily: fonts.bodyMd, fontSize: 12.5 },
+  customRow: {
+    borderTopWidth: 1,
+    borderBottomWidth: 1,
+    borderColor: colors.line,
+    paddingVertical: spacing.lg,
+    marginBottom: spacing.xl,
+  },
   stepper: {
     width: 32,
     height: 32,
-    borderRadius: 16,
-    backgroundColor: colors.surfaceHi,
+    borderRadius: radius.sm,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.line,
     alignItems: 'center',
     justifyContent: 'center',
   },

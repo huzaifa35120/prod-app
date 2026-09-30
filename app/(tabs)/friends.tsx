@@ -178,7 +178,7 @@ export default function Friends() {
 
         {incoming.length > 0 ? (
           <>
-            <SectionTitle right={<Badge label={`${incoming.length}`} tone="blue" />}>
+            <SectionTitle right={<Badge label={`${incoming.length}`} tone='accent' />}>
               Friend requests
             </SectionTitle>
             {incoming.map((e) => {
@@ -227,7 +227,7 @@ export default function Friends() {
                       <Text style={styles.name}>{displayNameOf(p)}</Text>
                       <Text style={styles.handle}>@{p?.username}</Text>
                     </View>
-                    <Badge label="Pending" tone="amber" />
+                    <Badge label="Pending" tone='neutral' />
                   </Row>
                 </Card>
               );
@@ -241,8 +241,7 @@ export default function Friends() {
 
         {friends.length === 0 ? (
           <EmptyState
-            icon="👋"
-            title="No friends yet"
+                        title="No friends yet"
             subtitle="Search for a username above to send your first friend request."
           />
         ) : (
@@ -280,9 +279,9 @@ function SearchAction({
   busy: boolean;
   onAdd: () => void;
 }) {
-  if (result.friend_status === 'accepted') return <Badge label="Friends" tone="green" />;
+  if (result.friend_status === 'accepted') return <Badge label="Friends" tone='accent' />;
   if (result.friend_status === 'pending') {
-    return <Badge label={result.i_requested ? 'Sent' : 'Wants to add you'} tone="amber" />;
+    return <Badge label={result.i_requested ? 'Sent' : 'Wants to add you'} tone='neutral' />;
   }
   return <Button title="Add" small loading={busy} onPress={onAdd} />;
 }

@@ -19,7 +19,7 @@ import {
 } from '../../../../lib/api';
 import { supabase, errorMessage } from '../../../../lib/supabase';
 import { challengePhase, formatDate, formatDuration, todayKey } from '../../../../lib/format';
-import { colors, radius, spacing } from '../../../../lib/theme';
+import { colors, fonts, radius, spacing } from '../../../../lib/theme';
 import {
   displayNameOf,
   type ChallengeDay, type ChallengeWithPeople, type FocusSession, type Task, type TaskCompletion,
@@ -238,11 +238,11 @@ export default function DayScreen() {
             {isOver ? (
               <Badge label="Finished" tone="rival" />
             ) : allDone ? (
-              <Badge label="Complete" tone="green" dot />
+              <Badge label="Complete" tone='accent' solid />
             ) : isFuture ? (
               <Badge label="Locked" tone="neutral" />
             ) : tasks.length > 0 ? (
-              <Badge label={`${myDone.size} of ${tasks.length}`} tone="amber" />
+              <Badge label={`${myDone.size} of ${tasks.length}`} tone='neutral' />
             ) : null}
           </Row>
 
@@ -250,7 +250,7 @@ export default function DayScreen() {
             <View style={{ marginTop: spacing.lg }}>
               <ProgressBar
                 value={myDone.size / tasks.length}
-                tint={allDone ? colors.green : colors.amber}
+                tint={allDone ? colors.done : colors.partial}
                 height={5}
               />
             </View>
@@ -258,7 +258,7 @@ export default function DayScreen() {
 
           {allDone ? (
             <View style={styles.greenBanner}>
-              <Ionicons name="checkmark-circle" size={19} color={colors.green} />
+              <Ionicons name="checkmark-circle" size={19} color={colors.done} />
               <Text style={styles.greenBannerText}>
                 Every task ticked — this day is green on your grid.
               </Text>
@@ -291,9 +291,10 @@ export default function DayScreen() {
           <SectionTitle
             right={
               challenge.opponent_id ? (
-                <Text style={styles.legendMini}>
-                  ◦ = {displayNameOf(opponentProfile)}
-                </Text>
+                <Row style={{ gap: 6 }}>
+                  <View style={styles.legendBar} />
+                  <Text style={styles.legendMini}>{displayNameOf(opponentProfile)}</Text>
+                </Row>
               ) : null
             }
           >
@@ -362,7 +363,7 @@ export default function DayScreen() {
                     <Avatar name={profile ? displayNameOf(profile) : 'You'} size={30} />
                     <Text style={styles.tallyName}>You</Text>
                   </Row>
-                  <Text style={[styles.tallyTime, { color: colors.primary }]}>
+                  <Text style={[styles.tallyTime, { color: colors.accent }]}>
                     {formatDuration(mySeconds)}
                   </Text>
                 </Row>
@@ -417,53 +418,52 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.md,
-    backgroundColor: colors.greenDim,
+    backgroundColor: colors.doneDim,
     borderWidth: 1,
-    borderColor: colors.greenEdge,
+    borderColor: colors.done,
     borderRadius: radius.md,
     padding: spacing.md,
     marginTop: spacing.lg,
   },
-  greenBannerText: { color: colors.green, fontSize: 13, fontWeight: '600', flex: 1 },
+  greenBannerText: { color: colors.done, fontSize: 13, fontWeight: '600', flex: 1 },
   taskRow: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.line,
     borderRadius: radius.md,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.md,
     marginBottom: spacing.sm,
     gap: spacing.sm,
   },
-  taskRowDone: { borderColor: colors.greenEdge, backgroundColor: colors.greenDim },
+  taskRowDone: { borderColor: colors.done, backgroundColor: colors.doneDim },
   checkArea: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, flex: 1 },
   checkbox: {
     width: 24,
     height: 24,
     borderRadius: 7,
     borderWidth: 2,
-    borderColor: colors.borderGlow,
+    borderColor: colors.textFaint,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  checkboxOn: { backgroundColor: colors.green, borderColor: colors.green },
+  checkboxOn: { backgroundColor: colors.done, borderColor: colors.done },
   taskTitle: { color: colors.text, fontSize: 15, flex: 1 },
-  taskTitleDone: { color: colors.green, textDecorationLine: 'line-through' },
+  taskTitleDone: { color: colors.done, textDecorationLine: 'line-through' },
   theirDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: colors.rival },
   addInput: {
     flex: 1,
-    backgroundColor: colors.surfaceHi,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.md,
-    paddingHorizontal: spacing.md,
+    borderBottomWidth: 1.5,
+    borderBottomColor: colors.line,
     paddingVertical: spacing.md,
     color: colors.text,
     fontSize: 15,
+    fontFamily: fonts.bodyMd,
   },
-  legendMini: { color: colors.textFaint, fontSize: 10 },
+  legendMini: { color: colors.textFaint, fontSize: 10, fontFamily: fonts.body },
+  legendBar: { width: 3, height: 10, backgroundColor: colors.rival },
   tallyName: { color: colors.text, fontSize: 14, fontWeight: '600', flexShrink: 1 },
   tallyTime: { fontSize: 16, fontWeight: '800' },
   sessionRow: {
@@ -472,7 +472,7 @@ const styles = StyleSheet.create({
     gap: spacing.md,
     backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.line,
     borderRadius: radius.md,
     padding: spacing.md,
     marginBottom: spacing.sm,

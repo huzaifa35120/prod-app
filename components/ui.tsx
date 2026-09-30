@@ -1,21 +1,10 @@
 import React, { useRef } from 'react';
 import {
-  ActivityIndicator,
-  Animated,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TextInputProps,
-  TextStyle,
-  View,
-  ViewStyle,
-  type RefreshControlProps,
+  ActivityIndicator, Animated, Pressable, ScrollView, StyleSheet, Text, TextInput,
+  TextInputProps, TextStyle, View, ViewStyle, type RefreshControlProps,
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView, type Edge } from 'react-native-safe-area-context';
-import { colors, elevation, glow, gradients, radius, spacing, type } from '../lib/theme';
+import { colors, fonts, GUTTER, radius, spacing, type } from '../lib/theme';
 import { initialsOf } from '../lib/format';
 
 /* ================================================================== */
@@ -61,8 +50,9 @@ export function Spacer({ h }: { h: number }) {
   return <View style={{ height: h }} />;
 }
 
-export function Divider({ style }: { style?: ViewStyle }) {
-  return <View style={[styles.divider, style]} />;
+/** The main structural device — used instead of wrapping things in cards. */
+export function Rule({ style, bright }: { style?: ViewStyle; bright?: boolean }) {
+  return <View style={[styles.rule, bright && { backgroundColor: colors.textFaint }, style]} />;
 }
 
 /* ================================================================== */
@@ -83,11 +73,7 @@ export function H3({ children, style }: { children: React.ReactNode; style?: Tex
 }
 
 export function Body({
-  children,
-  muted,
-  center,
-  size,
-  style,
+  children, muted, center, size, style,
 }: {
   children: React.ReactNode;
   muted?: boolean;
@@ -114,18 +100,23 @@ export function Caption({ children, style }: { children: React.ReactNode; style?
   return <Text style={[type.caption, style]}>{children}</Text>;
 }
 
+/**
+ * Section marker: a wide-tracked label with a hairline running to the edge.
+ * This replaces the old "everything is a titled card" pattern.
+ */
 export function SectionTitle({
   children,
   right,
-  tight,
+  style,
 }: {
   children: React.ReactNode;
   right?: React.ReactNode;
-  tight?: boolean;
+  style?: ViewStyle;
 }) {
   return (
-    <View style={[styles.sectionTitle, tight && { marginTop: spacing.lg }]}>
+    <View style={[styles.section, style]}>
       <Text style={type.eyebrow}>{children}</Text>
+      <View style={styles.sectionRule} />
       {right}
     </View>
   );
@@ -135,60 +126,36 @@ export function SectionTitle({
 /*  Surfaces                                                           */
 /* ================================================================== */
 
-/** Scales down slightly while held. Used by Card and Button. */
-function usePressScale(to = 0.97) {
+function usePressScale(to = 0.985) {
   const scale = useRef(new Animated.Value(1)).current;
   const spring = (v: number) =>
-    Animated.spring(scale, { toValue: v, useNativeDriver: true, speed: 40, bounciness: 4 }).start();
-  return {
-    scale,
-    onPressIn: () => spring(to),
-    onPressOut: () => spring(1),
-  };
+    Animated.spring(scale, { toValue: v, useNativeDriver: true, speed: 50, bounciness: 0 }).start();
+  return { scale, onPressIn: () => spring(to), onPressOut: () => spring(1) };
 }
 
+/**
+ * A panel. Deliberately plain — flat fill, hairline border, small radius.
+ * Prefer plain Views and Rules where a box is not actually needed.
+ */
 export function Card({
-  children,
-  style,
-  onPress,
-  glowColor,
-  flat,
+  children, style, onPress, accent,
 }: {
   children: React.ReactNode;
   style?: ViewStyle;
   onPress?: () => void;
-  /** Casts a coloured halo — use sparingly, for the one thing that matters. */
-  glowColor?: string;
-  /** Drops the shadow and gradient, for nested/secondary surfaces. */
-  flat?: boolean;
+  /** Left edge bar, for the one item that matters on a screen. */
+  accent?: string;
 }) {
   const press = usePressScale();
-
   const inner = (
-    <LinearGradient
-      colors={flat ? [colors.surfaceHi, colors.surfaceHi] : gradients.surface}
-      start={{ x: 0, y: 0 }}
-      end={{ x: 1, y: 1 }}
-      style={[styles.card, style]}
-    >
+    <View style={[styles.card, accent ? { borderLeftWidth: 3, borderLeftColor: accent } : null, style]}>
       {children}
-    </LinearGradient>
+    </View>
   );
 
-  if (!onPress) {
-    return (
-      <View style={[!flat && elevation.card, glowColor ? glow(glowColor, 0.22) : null]}>{inner}</View>
-    );
-  }
-
+  if (!onPress) return inner;
   return (
-    <Animated.View
-      style={[
-        { transform: [{ scale: press.scale }] },
-        !flat && elevation.card,
-        glowColor ? glow(glowColor, 0.22) : null,
-      ]}
-    >
+    <Animated.View style={{ transform: [{ scale: press.scale }] }}>
       <Pressable onPress={onPress} onPressIn={press.onPressIn} onPressOut={press.onPressOut}>
         {inner}
       </Pressable>
@@ -200,33 +167,10 @@ export function Card({
 /*  Button                                                             */
 /* ================================================================== */
 
-type ButtonVariant = 'primary' | 'success' | 'secondary' | 'ghost' | 'danger';
-
-const BUTTON_GRADIENTS: Record<ButtonVariant, readonly [string, string] | null> = {
-  primary: gradients.primary,
-  success: gradients.green,
-  danger: null,
-  secondary: null,
-  ghost: null,
-};
-
-const BUTTON_INK: Record<ButtonVariant, string> = {
-  primary: colors.primaryInk,
-  success: colors.greenInk,
-  secondary: colors.text,
-  ghost: colors.textDim,
-  danger: colors.red,
-};
+type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger';
 
 export function Button({
-  title,
-  onPress,
-  variant = 'primary',
-  loading,
-  disabled,
-  style,
-  small,
-  icon,
+  title, onPress, variant = 'primary', loading, disabled, style, small, icon,
 }: {
   title: string;
   onPress?: () => void;
@@ -237,36 +181,22 @@ export function Button({
   small?: boolean;
   icon?: React.ReactNode;
 }) {
-  const press = usePressScale(0.96);
+  const press = usePressScale(0.97);
   const isDisabled = disabled || loading;
-  const gradient = BUTTON_GRADIENTS[variant];
-  const ink = BUTTON_INK[variant];
 
-  const content = (
-    <>
-      {loading ? (
-        <ActivityIndicator color={ink} size="small" />
-      ) : (
-        <>
-          {icon}
-          <Text style={[type.button, { color: ink }, small && { fontSize: 13.5 }]} numberOfLines={1}>
-            {title}
-          </Text>
-        </>
-      )}
-    </>
-  );
-
-  const shell: ViewStyle[] = [styles.button, small ? styles.buttonSmall : null, style].filter(
-    Boolean
-  ) as ViewStyle[];
+  const palette: Record<ButtonVariant, { bg: string; fg: string; border: string }> = {
+    primary: { bg: colors.accent, fg: colors.accentInk, border: colors.accent },
+    secondary: { bg: 'transparent', fg: colors.text, border: colors.line },
+    ghost: { bg: 'transparent', fg: colors.textDim, border: 'transparent' },
+    danger: { bg: 'transparent', fg: colors.danger, border: colors.danger },
+  };
+  const p = palette[variant];
 
   return (
     <Animated.View
       style={[
         { transform: [{ scale: press.scale }] },
-        isDisabled && { opacity: 0.4 },
-        !isDisabled && gradient ? glow(gradient[1], 0.32) : null,
+        isDisabled && { opacity: 0.35 },
         style?.flex ? { flex: style.flex } : null,
       ]}
     >
@@ -274,21 +204,22 @@ export function Button({
         onPress={isDisabled ? undefined : onPress}
         onPressIn={isDisabled ? undefined : press.onPressIn}
         onPressOut={isDisabled ? undefined : press.onPressOut}
+        style={[
+          styles.button,
+          small && styles.buttonSmall,
+          { backgroundColor: p.bg, borderColor: p.border },
+          style,
+        ]}
       >
-        {gradient ? (
-          <LinearGradient colors={gradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={shell}>
-            {content}
-          </LinearGradient>
+        {loading ? (
+          <ActivityIndicator color={p.fg} size="small" />
         ) : (
-          <View
-            style={[
-              ...shell,
-              variant === 'secondary' && styles.buttonSecondary,
-              variant === 'danger' && styles.buttonDanger,
-            ]}
-          >
-            {content}
-          </View>
+          <>
+            {icon}
+            <Text style={[type.button, { color: p.fg }, small && { fontSize: 12.5 }]} numberOfLines={1}>
+              {title}
+            </Text>
+          </>
         )}
       </Pressable>
     </Animated.View>
@@ -300,37 +231,28 @@ export function Button({
 /* ================================================================== */
 
 export function Field({
-  label,
-  hint,
-  error,
-  ...props
+  label, hint, error, ...props
 }: TextInputProps & { label?: string; hint?: string; error?: string }) {
   const [focused, setFocused] = React.useState(false);
 
   return (
-    <View style={{ marginBottom: spacing.lg }}>
+    <View style={{ marginBottom: spacing.xl }}>
       {label ? <Text style={[type.eyebrow, { marginBottom: spacing.sm }]}>{label}</Text> : null}
       <TextInput
         placeholderTextColor={colors.textFaint}
         {...props}
-        onFocus={(e) => {
-          setFocused(true);
-          props.onFocus?.(e);
-        }}
-        onBlur={(e) => {
-          setFocused(false);
-          props.onBlur?.(e);
-        }}
+        onFocus={(e) => { setFocused(true); props.onFocus?.(e); }}
+        onBlur={(e) => { setFocused(false); props.onBlur?.(e); }}
         style={[
           styles.input,
-          focused && styles.inputFocused,
-          error ? { borderColor: colors.redEdge } : null,
-          props.multiline && { height: 104, paddingTop: spacing.md + 2, textAlignVertical: 'top' },
+          focused && { borderBottomColor: colors.accent },
+          error ? { borderBottomColor: colors.danger } : null,
+          props.multiline && { height: 92, textAlignVertical: 'top', paddingTop: spacing.md },
           props.style,
         ]}
       />
       {error ? (
-        <Text style={[type.caption, { color: colors.red, marginTop: spacing.sm }]}>{error}</Text>
+        <Text style={[type.caption, { color: colors.danger, marginTop: spacing.sm }]}>{error}</Text>
       ) : hint ? (
         <Text style={[type.caption, { marginTop: spacing.sm }]}>{hint}</Text>
       ) : null}
@@ -342,88 +264,68 @@ export function Field({
 /*  Bits                                                               */
 /* ================================================================== */
 
-export type Tone = 'neutral' | 'green' | 'blue' | 'amber' | 'red' | 'rival';
+export type Tone = 'neutral' | 'accent' | 'rival' | 'danger' | 'muted';
 
-const TONES: Record<Tone, { bg: string; fg: string; edge: string }> = {
-  neutral: { bg: colors.surfaceMax, fg: colors.textDim, edge: colors.borderHi },
-  green: { bg: colors.greenDim, fg: colors.green, edge: colors.greenEdge },
-  blue: { bg: colors.primaryDim, fg: colors.primary, edge: colors.primaryEdge },
-  amber: { bg: colors.amberDim, fg: colors.amber, edge: colors.amberEdge },
-  red: { bg: colors.redDim, fg: colors.red, edge: colors.redEdge },
-  rival: { bg: colors.rivalDim, fg: colors.rival, edge: colors.rivalEdge },
+const TONES: Record<Tone, string> = {
+  neutral: colors.textDim,
+  accent: colors.accent,
+  rival: colors.rival,
+  danger: colors.danger,
+  muted: colors.textFaint,
 };
 
-export function Badge({
-  label,
-  tone = 'neutral',
-  dot,
-}: {
-  label: string;
-  tone?: Tone;
-  dot?: boolean;
-}) {
-  const t = TONES[tone];
+/** A tag, not a pill — square edges, hairline border, uppercase. */
+export function Badge({ label, tone = 'neutral', solid }: { label: string; tone?: Tone; solid?: boolean }) {
+  const c = TONES[tone];
   return (
-    <View style={[styles.badge, { backgroundColor: t.bg, borderColor: t.edge }]}>
-      {dot ? <View style={[styles.badgeDot, { backgroundColor: t.fg }]} /> : null}
-      <Text style={[styles.badgeText, { color: t.fg }]}>{label}</Text>
+    <View
+      style={[
+        styles.badge,
+        solid ? { backgroundColor: c, borderColor: c } : { borderColor: c },
+      ]}
+    >
+      <Text style={[styles.badgeText, { color: solid ? colors.accentInk : c }]}>{label}</Text>
     </View>
   );
 }
 
 export function Avatar({
-  name,
-  size = 40,
-  tone = 'blue',
+  name, size = 36, tone = 'accent',
 }: {
   name: string;
   size?: number;
-  tone?: 'blue' | 'rival';
+  tone?: 'accent' | 'rival' | 'plain';
 }) {
-  const palette = tone === 'rival' ? gradients.rival : gradients.primary;
+  const c = tone === 'rival' ? colors.rival : tone === 'plain' ? colors.textDim : colors.accent;
   return (
-    <LinearGradient
-      colors={palette}
-      start={{ x: 0, y: 0 }}
-      end={{ x: 1, y: 1 }}
+    <View
       style={{
         width: size,
         height: size,
-        borderRadius: size / 2,
+        borderRadius: radius.sm,
+        borderWidth: 1,
+        borderColor: c,
         alignItems: 'center',
         justifyContent: 'center',
       }}
     >
-      <View
+      <Text
         style={{
-          width: size - 3,
-          height: size - 3,
-          borderRadius: (size - 3) / 2,
-          backgroundColor: colors.bgSoft,
-          alignItems: 'center',
-          justifyContent: 'center',
+          color: c,
+          fontFamily: fonts.display,
+          fontSize: size * 0.38,
+          letterSpacing: -0.3,
         }}
       >
-        <Text
-          style={{
-            color: tone === 'rival' ? colors.rival : colors.primary,
-            fontFamily: 'SpaceGrotesk_700Bold',
-            fontSize: size * 0.36,
-          }}
-        >
-          {initialsOf(name)}
-        </Text>
-      </View>
-    </LinearGradient>
+        {initialsOf(name)}
+      </Text>
+    </View>
   );
 }
 
-/** Horizontal meter. `value` is 0–1. */
+/** Flat meter. `value` is 0–1. */
 export function ProgressBar({
-  value,
-  tint = colors.primary,
-  height = 6,
-  track = colors.surfaceMax,
+  value, tint = colors.accent, height = 3, track = colors.line,
 }: {
   value: number;
   tint?: string;
@@ -432,61 +334,49 @@ export function ProgressBar({
 }) {
   const pct = Math.max(0, Math.min(1, Number.isFinite(value) ? value : 0));
   return (
-    <View style={{ height, borderRadius: radius.pill, backgroundColor: track, overflow: 'hidden' }}>
+    <View style={{ height, backgroundColor: track, overflow: 'hidden' }}>
       <View style={{ width: `${pct * 100}%`, height: '100%', backgroundColor: tint }} />
     </View>
   );
 }
 
-export function StatTile({
-  label,
-  value,
-  tint,
+/** A number with a label under it. No box — just type. */
+export function Stat({
+  label, value, tint, align = 'left',
 }: {
   label: string;
   value: string;
   tint?: string;
+  align?: 'left' | 'center' | 'right';
 }) {
-  // Values like "19h 39m" are far wider than "14", and three tiles across a
-  // 320pt phone leaves little room — so step the size down as it grows.
-  const size = value.length > 6 ? 15 : value.length > 4 ? 17 : 19;
-
   return (
-    <View style={styles.statTile}>
+    <View style={{ flex: 1, alignItems: align === 'center' ? 'center' : align === 'right' ? 'flex-end' : 'flex-start' }}>
       <Text
-        style={[type.numeral, { fontSize: size }, tint ? { color: tint } : null]}
+        style={[type.statMd, tint ? { color: tint } : null]}
         numberOfLines={1}
         adjustsFontSizeToFit
-        minimumFontScale={0.7}
+        minimumFontScale={0.65}
       >
         {value}
       </Text>
-      <Text style={styles.statLabel} numberOfLines={2}>
-        {label}
-      </Text>
+      <Text style={[type.eyebrow, { marginTop: 3 }]}>{label}</Text>
     </View>
   );
 }
 
 export function EmptyState({
-  icon,
-  title,
-  subtitle,
-  action,
+  title, subtitle, action,
 }: {
-  icon: string;
   title: string;
   subtitle?: string;
   action?: React.ReactNode;
 }) {
   return (
     <View style={styles.empty}>
-      <View style={styles.emptyIcon}>
-        <Text style={{ fontSize: 32 }}>{icon}</Text>
-      </View>
+      <View style={styles.emptyBar} />
       <Text style={[type.h2, { marginBottom: spacing.sm }]}>{title}</Text>
       {subtitle ? (
-        <Text style={[type.bodySm, { textAlign: 'center', maxWidth: 300 }]}>{subtitle}</Text>
+        <Text style={[type.bodySm, { maxWidth: 320 }]}>{subtitle}</Text>
       ) : null}
       {action ? <View style={{ marginTop: spacing.xl, alignSelf: 'stretch' }}>{action}</View> : null}
     </View>
@@ -496,7 +386,7 @@ export function EmptyState({
 export function Loading({ label }: { label?: string }) {
   return (
     <View style={styles.loading}>
-      <ActivityIndicator color={colors.primary} />
+      <ActivityIndicator color={colors.accent} />
       {label ? <Text style={[type.caption, { marginTop: spacing.lg }]}>{label}</Text> : null}
     </View>
   );
@@ -506,24 +396,25 @@ export function Loading({ label }: { label?: string }) {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
-  scrollBody: { padding: spacing.lg, paddingBottom: spacing.xxxl * 2 },
+  scrollBody: { padding: GUTTER, paddingBottom: spacing.xxxl * 2 },
   row: { flexDirection: 'row', alignItems: 'center' },
-  divider: { height: 1, backgroundColor: colors.border, marginVertical: spacing.lg },
+  rule: { height: 1, backgroundColor: colors.line },
 
-  sectionTitle: {
+  section: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: spacing.md,
+    gap: spacing.md,
     marginTop: spacing.xxl,
+    marginBottom: spacing.lg,
   },
+  sectionRule: { flex: 1, height: 1, backgroundColor: colors.line },
 
   card: {
-    borderRadius: radius.xl,
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
     borderWidth: 1,
-    borderColor: colors.border,
-    padding: spacing.lg + 2,
-    overflow: 'hidden',
+    borderColor: colors.line,
+    padding: spacing.lg,
   },
 
   button: {
@@ -532,74 +423,48 @@ const styles = StyleSheet.create({
     paddingVertical: 15,
     paddingHorizontal: spacing.xl,
     borderRadius: radius.md,
+    borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
     minHeight: 50,
   },
-  buttonSmall: { paddingVertical: 9, paddingHorizontal: spacing.lg, minHeight: 38, borderRadius: radius.sm },
-  buttonSecondary: {
-    backgroundColor: colors.surfaceMax,
-    borderWidth: 1,
-    borderColor: colors.borderHi,
-  },
-  buttonDanger: { backgroundColor: colors.redDim, borderWidth: 1, borderColor: colors.redEdge },
-
-  input: {
-    backgroundColor: colors.surfaceHi,
-    borderWidth: 1.5,
-    borderColor: colors.border,
-    borderRadius: radius.md,
+  buttonSmall: {
+    paddingVertical: 8,
     paddingHorizontal: spacing.lg,
-    paddingVertical: 15,
-    color: colors.text,
-    fontSize: 16,
-    fontFamily: 'Inter_500Medium',
+    minHeight: 34,
+    borderRadius: radius.sm,
   },
-  inputFocused: { borderColor: colors.primaryEdge, backgroundColor: colors.surfaceMax },
+
+  // Underline, not a box — lighter and less "form-like".
+  input: {
+    borderBottomWidth: 1.5,
+    borderBottomColor: colors.line,
+    paddingVertical: spacing.md,
+    paddingHorizontal: 0,
+    color: colors.text,
+    fontSize: 17,
+    fontFamily: fonts.bodyMd,
+  },
 
   badge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    paddingHorizontal: spacing.md,
-    paddingVertical: 5,
-    borderRadius: radius.pill,
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    borderRadius: radius.xs,
     borderWidth: 1,
     alignSelf: 'flex-start',
   },
-  badgeDot: { width: 5, height: 5, borderRadius: 3 },
-  badgeText: { fontFamily: 'Inter_600SemiBold', fontSize: 11, letterSpacing: 0.2 },
-
-  statTile: {
-    flex: 1,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.lg,
-    paddingVertical: spacing.lg,
-    paddingHorizontal: spacing.sm,
-    alignItems: 'center',
-    gap: 5,
-  },
-  statLabel: {
-    fontFamily: 'Inter_500Medium',
-    fontSize: 10,
-    color: colors.textFaint,
+  badgeText: {
+    fontFamily: fonts.bodySemi,
+    fontSize: 9.5,
+    letterSpacing: 1,
     textTransform: 'uppercase',
-    letterSpacing: 0.6,
-    textAlign: 'center',
   },
 
-  empty: { alignItems: 'center', justifyContent: 'center', paddingVertical: spacing.xxxl },
-  emptyIcon: {
-    width: 76,
-    height: 76,
-    borderRadius: 38,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-    alignItems: 'center',
-    justifyContent: 'center',
+  empty: { paddingVertical: spacing.xxxl },
+  emptyBar: {
+    width: 32,
+    height: 3,
+    backgroundColor: colors.accent,
     marginBottom: spacing.xl,
   },
 

@@ -1,6 +1,6 @@
 import React from 'react';
 import { View } from 'react-native';
-import { colors, spacing } from '../lib/theme';
+import { colors, fonts, spacing } from '../lib/theme';
 import { parseDateKey, toDateKey } from '../lib/format';
 
 /**
@@ -27,12 +27,14 @@ export function DateField({
           if (e.target.value) onChange(parseDateKey(e.target.value));
         },
         style: {
-          backgroundColor: colors.surfaceHi,
-          border: `1px solid ${colors.border}`,
-          borderRadius: 12,
-          padding: `${spacing.md + 2}px ${spacing.lg}px`,
+          background: 'transparent',
+          border: 'none',
+          borderBottom: `1.5px solid ${colors.line}`,
+          borderRadius: 0,
+          padding: `${spacing.md}px 0`,
           color: colors.text,
-          fontSize: 16,
+          fontSize: 17,
+          fontFamily: fonts.bodyMd,
           colorScheme: 'dark',
           width: '100%',
           boxSizing: 'border-box',

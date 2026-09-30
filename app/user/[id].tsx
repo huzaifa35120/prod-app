@@ -57,7 +57,7 @@ export default function UserProfile() {
   if (!profile) {
     return (
       <Screen scroll edges={['bottom']}>
-        <EmptyState icon="👤" title="Profile not found" />
+        <EmptyState title="Profile not found" />
       </Screen>
     );
   }
@@ -78,7 +78,7 @@ export default function UserProfile() {
         <Text style={styles.handle}>@{profile.username}</Text>
         {areFriends ? (
           <View style={{ marginTop: spacing.md }}>
-            <Badge label="Friends" tone="green" />
+            <Badge label="Friends" tone='accent' />
           </View>
         ) : null}
         {profile.bio ? <Text style={styles.bio}>{profile.bio}</Text> : null}

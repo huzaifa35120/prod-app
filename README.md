@@ -125,8 +125,8 @@ app/
   _layout.tsx                       root stack, auth gate, setup notice
   (auth)/sign-in.tsx  sign-up.tsx
   (tabs)/
-    index.tsx                       your challenges, grouped by phase
-    discover.tsx                    open challenges + invite code entry
+    index.tsx                       Today — tick today's tasks from anywhere
+    challenges.tsx                  yours, grouped by phase + Browse toggle
     friends.tsx                     search, requests, friend list
     profile.tsx                     your profile and lifetime stats
   challenge/
@@ -137,11 +137,11 @@ app/
   user/[id].tsx                     someone else's profile
 
 components/
-  ui.tsx           design-system primitives (Card, Button, Field, Badge, …)
+  ui.tsx           design-system primitives (Button, Field, Badge, Rule, Stat, …)
   ChallengeCard    list card with day progress and who is ahead
   DayGrid          the calendar, including the green-day states
-  StatsPanel       head-to-head scoreboard and winner banner
-  FocusTimer       circular stopwatch that races your opponent
+  StatsPanel       head-to-head scoreboard
+  FocusTimer       the day's stopwatch
   TaskRow          animated checkbox row
   DateField(.web)  native date picker, with a browser fallback
 lib/           supabase client, auth context, API layer, theme, types, helpers
@@ -195,48 +195,48 @@ Two views do the aggregation:
 
 ## Design system
 
-Everything visual comes from [`lib/theme.ts`](lib/theme.ts) — palette, gradients,
-spacing, radii, elevation and a full type scale. Components read from it rather
-than hard-coding values, so changing the accent colour or the type ramp in that
-one file re-skins the app.
+Everything visual comes from [`lib/theme.ts`](lib/theme.ts) — palette, spacing,
+radii and a full type scale. Components read from it rather than hard-coding
+values, so the accent colour or the type ramp can be changed in that one file.
 
-- **Type** — Space Grotesk for headings and every number (it has proper tabular
-  figures, which the stopwatch needs), Inter for prose. Both load through
-  `expo-font` behind the splash screen, so nothing renders unstyled.
-- **Colour** — a near-black base with a cool cast, so the accent gradients read
-  as light sources. Blue is *you*, violet is your opponent, green means done,
-  amber means partly done. That mapping holds everywhere.
-- **Motion** — React Native's `Animated` (no Reanimated, so no extra native
-  dependency): buttons and cards scale on press, checkboxes spring, the timer
-  ring sweeps, and the scoreboard bar slides when the standings change.
+The direction is **athletic / editorial**: it should read like a results board,
+not a SaaS dashboard. Four rules hold it together, and breaking any of them is
+what made the earlier version look generic:
 
-### Safe areas
+1. **No gradients.** Flat fills only.
+2. **No glows.** Depth comes from contrast and hairline rules, not shadow.
+3. **One accent.** Lime is *you*; orange is *your rival*. Nothing else in the
+   app is coloured, so colour always carries meaning — a lime square is a day
+   you completed, an orange bar is your opponent.
+4. **Structure comes from rules and spacing,** not from wrapping everything in
+   a card. Lists are full-bleed rows divided by hairlines.
 
-From SDK 52 Android renders **edge-to-edge**: the app draws underneath the
-status bar and the gesture/navigation bar rather than being letterboxed above
-them. iOS has the same problem with the home indicator. So every screen has to
-reserve those insets itself.
+- **Type** — Archivo (800/700/600) for headings and every number, set tight and
+  uppercase; IBM Plex Sans for prose and labels. Numbers are always tabular so
+  columns line up.
+- **Surfaces** are neutral near-blacks with no blue cast, and radii are small —
+  large pill shapes read as friendly consumer software, which this is not.
+- **Motion** uses React Native's `Animated` (no Reanimated, so no extra native
+  dependency): buttons and rows scale slightly on press, checkboxes spring, and
+  the scoreboard bar slides when the standings change.
 
-- **Tab screens** pass `edges={['top']}`. The tab bar reserves the bottom inset
-  in [`app/(tabs)/_layout.tsx`](app/(tabs)/_layout.tsx) — note that setting an
-  explicit `height` on `tabBarStyle` *overrides* react-navigation's automatic
-  inset, so the height there is `BAR_CONTENT_HEIGHT + insets.bottom` with a
-  matching `paddingBottom`. If you change that height, keep the inset in it.
-- **Stack screens** (challenge, day, invite, profile) pass `edges={['bottom']}`
-  — the navigation header already covers the top.
-- **Auth screens** pass `edges={['top', 'bottom']}`; they have neither.
+### Navigation
 
-Layout is sized from `useWindowDimensions()` rather than fixed pixels where it
-matters: the day grid divides each row evenly (5 cells per row, 6 above 430pt)
-and the timer ring scales between 180 and 250pt. Verified with no horizontal
-overflow at 320, 360 and 430pt.
+**Today** is the home tab. Ticking today's boxes is the thing you do every day,
+so it sits one tap from launch rather than three screens deep — it shows today's
+checklist across every live challenge, the head-to-head for the day, and a route
+into the timer.
+
+Discover used to be its own tab, which gave browsing strangers' challenges the
+same weight as your own. It is a **Browse** toggle inside Challenges now, which
+freed the tab slot Today uses.
 
 ### Font and icon imports
 
 Both are imported per file rather than from the package root:
 
 ```ts
-import { Inter_400Regular } from '@expo-google-fonts/inter/400Regular';
+import { Archivo_800ExtraBold } from '@expo-google-fonts/archivo/800ExtraBold';
 import Ionicons from '@expo/vector-icons/Ionicons';
 ```
 

@@ -1,46 +1,41 @@
 import React, { useCallback, useMemo, useState } from 'react';
-import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { LinearGradient } from 'expo-linear-gradient';
-// Direct import: the package root pulls in every icon font family.
 import Ionicons from '@expo/vector-icons/Ionicons';
+import * as Haptics from 'expo-haptics';
 import {
-  Avatar, Body, Button, Caption, EmptyState, Hero, Loading, Row, Screen, SectionTitle, StatTile,
+  Button, EmptyState, Loading, Row, Screen, SectionTitle,
 } from '../../components/ui';
-import { ChallengeCard, type Standing } from '../../components/ChallengeCard';
+import { TaskRow } from '../../components/TaskRow';
 import { useAuth } from '../../lib/auth';
-import { finalizeDueChallenges, getLeaderboards, listMyChallenges } from '../../lib/api';
+import { finalizeDueChallenges, getToday, setTaskDone, type TodayEntry } from '../../lib/api';
 import { errorMessage } from '../../lib/supabase';
-import { challengePhase, formatDuration } from '../../lib/format';
-import { colors, gradients, radius, spacing, type } from '../../lib/theme';
-import { displayNameOf, type ChallengeWithPeople, type LeaderboardRow } from '../../lib/types';
+import { formatDuration, parseDateKey, todayKey } from '../../lib/format';
+import { colors, fonts, GUTTER, radius, spacing, type } from '../../lib/theme';
+import { displayNameOf, type Task } from '../../lib/types';
 
-function greeting() {
-  const h = new Date().getHours();
-  if (h < 12) return 'Good morning';
-  if (h < 18) return 'Good afternoon';
-  return 'Good evening';
-}
-
-export default function MyChallenges() {
+/**
+ * Home.
+ *
+ * Ticking today's boxes is the thing you do every day, so it lives one tap
+ * from launch rather than three screens deep. Everything here is actionable;
+ * browsing and history sit on the other tabs.
+ */
+export default function Today() {
   const { user, profile } = useAuth();
   const router = useRouter();
-  const [challenges, setChallenges] = useState<ChallengeWithPeople[]>([]);
-  const [board, setBoard] = useState<LeaderboardRow[]>([]);
+  const [entries, setEntries] = useState<TodayEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [busyTask, setBusyTask] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (!user) return;
     try {
-      setError(null);
       await finalizeDueChallenges();
-      const mine = await listMyChallenges(user.id);
-      setChallenges(mine);
-      setBoard(await getLeaderboards(mine.map((c) => c.id)));
+      setEntries(await getToday(user.id));
     } catch (e) {
-      setError(errorMessage(e));
+      Alert.alert('Could not load today', errorMessage(e));
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -53,60 +48,57 @@ export default function MyChallenges() {
     }, [load])
   );
 
-  const standingFor = useCallback(
-    (c: ChallengeWithPeople): Standing | undefined => {
-      if (!c.opponent_id || !user) return undefined;
-      const rows = board.filter((r) => r.challenge_id === c.id);
-      if (rows.length < 2) return undefined;
-      const mine = rows.find((r) => r.user_id === user.id);
-      const theirs = rows.find((r) => r.user_id !== user.id);
-      if (!mine || !theirs) return undefined;
-      return { mySeconds: Number(mine.total_seconds), theirSeconds: Number(theirs.total_seconds) };
-    },
-    [board, user]
-  );
+  async function toggle(entry: TodayEntry, task: Task) {
+    if (!user) return;
+    const on = !entry.myDone.has(task.id);
+    setBusyTask(task.id);
 
-  const groups = useMemo(() => {
-    const live: ChallengeWithPeople[] = [];
-    const waiting: ChallengeWithPeople[] = [];
-    const upcoming: ChallengeWithPeople[] = [];
-    const finished: ChallengeWithPeople[] = [];
+    // Optimistic — the box flips now, the server reconciles after.
+    setEntries((prev) =>
+      prev.map((e) => {
+        if (e.challenge.id !== entry.challenge.id) return e;
+        const next = new Set(e.myDone);
+        if (on) next.add(task.id);
+        else next.delete(task.id);
+        return { ...e, myDone: next };
+      })
+    );
 
-    for (const c of challenges) {
-      const phase = challengePhase(c.start_date, c.end_date);
-      if (!c.opponent_id) waiting.push(c);
-      else if (c.status === 'completed' || phase === 'finished') finished.push(c);
-      else if (phase === 'upcoming') upcoming.push(c);
-      else live.push(c);
+    try {
+      void Haptics.impactAsync(
+        on ? Haptics.ImpactFeedbackStyle.Medium : Haptics.ImpactFeedbackStyle.Light
+      );
+      await setTaskDone(task.id, user.id, entry.challenge.id, on);
+      await load();
+    } catch (e) {
+      Alert.alert('Could not update', errorMessage(e));
+      await load();
+    } finally {
+      setBusyTask(null);
     }
-    return { live, waiting, upcoming, finished };
-  }, [challenges]);
+  }
 
-  const totals = useMemo(() => {
-    if (!user) return { seconds: 0, days: 0, wins: 0 };
-    const mine = board.filter((r) => r.user_id === user.id);
-    const seconds = mine.reduce((s, r) => s + Number(r.total_seconds), 0);
-    const days = mine.reduce((s, r) => s + r.days_complete, 0);
+  const heading = useMemo(() => {
+    const d = parseDateKey(todayKey());
+    return {
+      weekday: d.toLocaleDateString(undefined, { weekday: 'long' }),
+      date: d.toLocaleDateString(undefined, { day: 'numeric', month: 'long' }),
+    };
+  }, []);
 
-    let wins = 0;
-    for (const c of challenges) {
-      if (c.status !== 'completed') continue;
-      const rows = board.filter((r) => r.challenge_id === c.id);
-      const me = rows.find((r) => r.user_id === user.id);
-      const them = rows.find((r) => r.user_id !== user.id);
-      if (me && them && Number(me.total_seconds) > Number(them.total_seconds)) wins += 1;
-    }
-    return { seconds, days, wins };
-  }, [board, challenges, user]);
+  const summary = useMemo(() => {
+    const total = entries.reduce((n, e) => n + e.tasks.length, 0);
+    const done = entries.reduce((n, e) => n + e.myDone.size, 0);
+    const seconds = entries.reduce((n, e) => n + e.mySeconds, 0);
+    return { total, done, seconds };
+  }, [entries]);
 
-  if (loading) return <Loading label="Loading your challenges…" />;
-
-  const empty = challenges.length === 0;
+  if (loading) return <Loading label="Loading today…" />;
 
   return (
     <Screen>
       <ScrollView
-        contentContainerStyle={{ paddingBottom: spacing.xxl }}
+        contentContainerStyle={{ padding: GUTTER, paddingBottom: spacing.xxxl * 2 }}
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
@@ -119,115 +111,204 @@ export default function MyChallenges() {
           />
         }
       >
-        {/* hero */}
-        <LinearGradient
-          colors={gradients.hero}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 0, y: 1 }}
-          style={styles.hero}
-        >
-          <Row style={{ justifyContent: 'space-between', alignItems: 'flex-start' }}>
+        {/* ---- masthead ---- */}
+        <Row style={{ justifyContent: 'space-between', alignItems: 'flex-start' }}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.weekday}>{heading.weekday}</Text>
+            <Text style={type.hero}>{heading.date}</Text>
+          </View>
+          <Pressable onPress={() => router.push('/(tabs)/profile')} hitSlop={8}>
+            <Text style={styles.handle}>{profile ? `@${profile.username}` : ''}</Text>
+          </Pressable>
+        </Row>
+
+        {entries.length > 0 ? (
+          <Row style={styles.summary}>
             <View style={{ flex: 1 }}>
-              <Caption>{greeting()}</Caption>
-              <View style={{ height: 4 }} />
-              <Hero>{profile ? displayNameOf(profile).split(' ')[0] : 'Athlete'}</Hero>
+              <Text style={type.statMd}>
+                {summary.done}
+                <Text style={{ color: colors.textFaint }}>/{summary.total}</Text>
+              </Text>
+              <Text style={type.eyebrow}>Tasks today</Text>
             </View>
-            <Row style={{ gap: spacing.sm }}>
-              <Pressable
-                onPress={() => router.push('/challenge/new')}
-                style={({ pressed }) => [pressed && { opacity: 0.7 }]}
-                hitSlop={6}
-              >
-                <LinearGradient
-                  colors={gradients.primary}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                  style={styles.newButton}
-                >
-                  <Ionicons name="add" size={24} color={colors.primaryInk} />
-                </LinearGradient>
-              </Pressable>
-              <Pressable onPress={() => router.push('/(tabs)/profile')}>
-                <Avatar name={profile ? displayNameOf(profile) : '?'} size={46} />
-              </Pressable>
-            </Row>
+            <View style={styles.divider} />
+            <View style={{ flex: 1 }}>
+              <Text style={[type.statMd, { color: colors.accent }]}>
+                {formatDuration(summary.seconds)}
+              </Text>
+              <Text style={type.eyebrow}>Focused today</Text>
+            </View>
           </Row>
+        ) : null}
 
-          {!empty ? (
-            <Row style={{ gap: spacing.sm, marginTop: spacing.xl }}>
-              <StatTile label="Focused" value={formatDuration(totals.seconds)} tint={colors.primary} />
-              <StatTile label="Days done" value={String(totals.days)} tint={colors.green} />
-              <StatTile label="Wins" value={String(totals.wins)} tint={colors.amber} />
-            </Row>
-          ) : null}
-        </LinearGradient>
+        {entries.length === 0 ? (
+          <EmptyState
+            title="Nothing running"
+            subtitle="Start a challenge with a friend, or join one that is looking for a second player. Today's checklist shows up here once it is live."
+            action={
+              <Row style={{ gap: spacing.md }}>
+                <Button title="New challenge" style={{ flex: 1 }} onPress={() => router.push('/challenge/new')} />
+                <Button title="Browse" variant="secondary" style={{ flex: 1 }} onPress={() => router.push('/(tabs)/challenges')} />
+              </Row>
+            }
+          />
+        ) : null}
 
-        <View style={{ paddingHorizontal: spacing.lg }}>
-          {error ? <Text style={styles.error}>{error}</Text> : null}
+        {entries.map((entry) => {
+          const rival = entry.challenge.creator_id === user?.id
+            ? entry.challenge.opponent
+            : entry.challenge.creator;
+          const ahead = entry.mySeconds >= entry.rivalSeconds;
+          const allDone = entry.tasks.length > 0 && entry.myDone.size === entry.tasks.length;
 
-          {empty ? (
-            <EmptyState
-              icon="🏁"
-              title="No challenges yet"
-              subtitle="Create one and invite a friend, or browse open challenges other people have posted."
-              action={
-                <Button title="Create a challenge" onPress={() => router.push('/challenge/new')} />
-              }
-            />
-          ) : null}
+          return (
+            <View key={entry.challenge.id}>
+              <SectionTitle
+                right={
+                  <Pressable
+                    onPress={() => router.push(`/challenge/${entry.challenge.id}`)}
+                    hitSlop={8}
+                  >
+                    <Ionicons name="arrow-forward" size={14} color={colors.textFaint} />
+                  </Pressable>
+                }
+              >
+                Day {entry.day.day_number} of {entry.challenge.day_count}
+              </SectionTitle>
 
-          <Group title="Live now" items={groups.live} standingFor={standingFor} router={router} />
-          <Group title="Waiting for an opponent" items={groups.waiting} standingFor={standingFor} router={router} />
-          <Group title="Starting soon" items={groups.upcoming} standingFor={standingFor} router={router} />
-          <Group title="Finished" items={groups.finished} standingFor={standingFor} router={router} />
-        </View>
+              <Pressable onPress={() => router.push(`/challenge/${entry.challenge.id}`)}>
+                <Text style={[type.h2, { marginBottom: spacing.md }]} numberOfLines={1}>
+                  {entry.challenge.title}
+                </Text>
+              </Pressable>
+
+              {/* today's head-to-head */}
+              <Row style={styles.headToHead}>
+                <Text style={[styles.hhValue, { color: colors.accent }]}>
+                  {formatDuration(entry.mySeconds)}
+                </Text>
+                <Text style={styles.hhLabel}>
+                  {entry.mySeconds === 0 && entry.rivalSeconds === 0
+                    ? 'nothing logged yet'
+                    : ahead
+                      ? 'ahead today'
+                      : 'behind today'}
+                </Text>
+                <Text style={[styles.hhValue, { color: colors.rival, textAlign: 'right' }]}>
+                  {formatDuration(entry.rivalSeconds)}
+                </Text>
+              </Row>
+
+              {entry.tasks.length === 0 ? (
+                <Text style={styles.noTasks}>
+                  {entry.challenge.creator_id === user?.id
+                    ? 'No tasks set for today yet.'
+                    : `${displayNameOf(entry.challenge.creator)} hasn't set today's tasks.`}
+                </Text>
+              ) : (
+                entry.tasks.map((task) => (
+                  <TaskRow
+                    key={task.id}
+                    task={task}
+                    done={entry.myDone.has(task.id)}
+                    rivalDone={entry.rivalDone.has(task.id)}
+                    busy={busyTask === task.id}
+                    locked={false}
+                    canDelete={false}
+                    onToggle={() => toggle(entry, task)}
+                    onDelete={() => {}}
+                  />
+                ))
+              )}
+
+              <Row style={{ gap: spacing.md, marginTop: spacing.lg }}>
+                <Button
+                  title={entry.mySeconds > 0 ? 'Add focus time' : 'Start timer'}
+                  variant={allDone ? 'primary' : 'secondary'}
+                  small
+                  style={{ flex: 1 }}
+                  icon={
+                    <Ionicons
+                      name="play"
+                      size={12}
+                      color={allDone ? colors.accentInk : colors.text}
+                    />
+                  }
+                  onPress={() =>
+                    router.push(`/challenge/${entry.challenge.id}/day/${entry.day.day_number}`)
+                  }
+                />
+                {allDone ? (
+                  <View style={styles.doneFlag}>
+                    <Ionicons name="checkmark-sharp" size={13} color={colors.accentInk} />
+                    <Text style={styles.doneFlagText}>Day clear</Text>
+                  </View>
+                ) : null}
+              </Row>
+
+              <View style={{ height: spacing.xl }} />
+            </View>
+          );
+        })}
       </ScrollView>
-
     </Screen>
   );
 }
 
-function Group({
-  title,
-  items,
-  standingFor,
-  router,
-}: {
-  title: string;
-  items: ChallengeWithPeople[];
-  standingFor: (c: ChallengeWithPeople) => Standing | undefined;
-  router: ReturnType<typeof useRouter>;
-}) {
-  if (items.length === 0) return null;
-  return (
-    <>
-      <SectionTitle right={<Text style={type.caption}>{items.length}</Text>}>{title}</SectionTitle>
-      {items.map((c) => (
-        <ChallengeCard
-          key={c.id}
-          challenge={c}
-          standing={standingFor(c)}
-          onPress={() => router.push(`/challenge/${c.id}`)}
-        />
-      ))}
-    </>
-  );
-}
-
 const styles = StyleSheet.create({
-  hero: {
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.lg,
-    paddingBottom: spacing.xl,
-    borderBottomLeftRadius: radius.xxl,
-    borderBottomRightRadius: radius.xxl,
+  weekday: {
+    fontFamily: fonts.bodySemi,
+    fontSize: 11,
+    letterSpacing: 1.8,
+    textTransform: 'uppercase',
+    color: colors.accent,
+    marginBottom: 5,
   },
-  error: { ...type.bodySm, color: colors.red, marginTop: spacing.lg },
-  newButton: {
-    width: 46,
-    height: 46,
-    borderRadius: radius.pill,
+  handle: { fontFamily: fonts.body, fontSize: 12, color: colors.textFaint, paddingTop: 6 },
+  summary: {
+    marginTop: spacing.xl,
+    paddingTop: spacing.lg,
+    borderTopWidth: 1,
+    borderTopColor: colors.line,
+  },
+  divider: { width: 1, height: 34, backgroundColor: colors.line, marginHorizontal: spacing.lg },
+
+  headToHead: {
+    justifyContent: 'space-between',
     alignItems: 'center',
-    justifyContent: 'center',
+    paddingBottom: spacing.md,
+  },
+  hhValue: { fontFamily: fonts.display, fontSize: 17, letterSpacing: -0.4, fontVariant: ['tabular-nums'], flex: 1 },
+  hhLabel: {
+    fontFamily: fonts.body,
+    fontSize: 10.5,
+    color: colors.textFaint,
+    letterSpacing: 0.4,
+    textAlign: 'center',
+    flex: 1,
+  },
+  noTasks: {
+    fontFamily: fonts.body,
+    fontSize: 13,
+    color: colors.textFaint,
+    paddingVertical: spacing.lg,
+    borderTopWidth: 1,
+    borderTopColor: colors.line,
+  },
+  doneFlag: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: colors.accent,
+    paddingHorizontal: spacing.md,
+    borderRadius: radius.sm,
+    height: 34,
+  },
+  doneFlagText: {
+    fontFamily: fonts.bodySemi,
+    fontSize: 11,
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
+    color: colors.accentInk,
   },
 });

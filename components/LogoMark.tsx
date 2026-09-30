@@ -1,32 +1,22 @@
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { colors, gradients, radius } from '../lib/theme';
+import { colors, fonts, radius } from '../lib/theme';
 
-/** App mark: a gradient tile with a flame, used on the auth screens. */
-export function LogoMark({ size = 62 }: { size?: number }) {
+/** App mark: a lime block with the initial. Flat, no gradient, no emoji. */
+export function LogoMark({ size = 52 }: { size?: number }) {
   return (
-    <LinearGradient
-      colors={gradients.primary}
-      start={{ x: 0, y: 0 }}
-      end={{ x: 1, y: 1 }}
-      style={[
-        styles.mark,
-        { width: size, height: size, borderRadius: size * 0.3, shadowColor: colors.primary },
-      ]}
-    >
-      <Text style={{ fontSize: size * 0.46 }}>🔥</Text>
-    </LinearGradient>
+    <View style={[styles.mark, { width: size, height: size, borderRadius: radius.md }]}>
+      <Text style={[styles.glyph, { fontSize: size * 0.54 }]}>C</Text>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  mark: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowOpacity: 0.45,
-    shadowRadius: 20,
-    shadowOffset: { width: 0, height: 8 },
-    elevation: 10,
+  mark: { backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center' },
+  glyph: {
+    fontFamily: fonts.display,
+    color: colors.accentInk,
+    letterSpacing: -2,
+    marginTop: -2,
   },
 });

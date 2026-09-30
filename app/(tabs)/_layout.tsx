@@ -3,38 +3,29 @@ import { StyleSheet, View, type ColorValue } from 'react-native';
 import { Tabs } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { colors, radius } from '../../lib/theme';
+import { colors, fonts } from '../../lib/theme';
 
 type IconName = React.ComponentProps<typeof Ionicons>['name'];
 
 /**
- * Room for the icon pill (28) + label (~15) + padding, ABOVE the system inset.
- * react-navigation only adds the inset for you when no explicit height is set,
- * and the default bar is too short for the pill — so we set the height and add
- * the inset ourselves.
+ * Room for the icon and label ABOVE the system inset. react-navigation only
+ * adds the inset for you when no explicit height is set, so we add it back.
  */
-const BAR_CONTENT_HEIGHT = 62;
+const BAR_CONTENT_HEIGHT = 68;
 
-function TabIcon({
-  name,
-  color,
-  focused,
-}: {
-  name: IconName;
-  color: ColorValue;
-  focused: boolean;
-}) {
+function TabIcon({ name, color, focused }: { name: IconName; color: ColorValue; focused: boolean }) {
   return (
-    <View style={[styles.icon, focused && styles.iconActive]}>
-      <Ionicons name={name} size={21} color={color} />
+    <View style={styles.icon}>
+      <Ionicons name={name} size={20} color={color} />
+      {/* an underline, not a pill — matches the section rules elsewhere */}
+      <View style={[styles.marker, focused && { backgroundColor: colors.accent }]} />
     </View>
   );
 }
 
 export default function TabsLayout() {
-  // Android draws edge-to-edge by default from SDK 52, and iOS has the home
-  // indicator, so the bar must reserve the bottom inset or the system gesture
-  // area lands on top of the tabs.
+  // Android draws edge-to-edge from SDK 52 and iOS has the home indicator, so
+  // the bar must reserve the bottom inset or the gesture area lands on it.
   const insets = useSafeAreaInsets();
 
   return (
@@ -45,28 +36,28 @@ export default function TabsLayout() {
           styles.bar,
           { height: BAR_CONTENT_HEIGHT + insets.bottom, paddingBottom: insets.bottom },
         ],
-        tabBarActiveTintColor: colors.primary,
+        tabBarActiveTintColor: colors.text,
         tabBarInactiveTintColor: colors.textFaint,
         tabBarLabelStyle: styles.label,
-        tabBarItemStyle: { paddingTop: 6 },
+        tabBarItemStyle: { paddingTop: 9 },
         sceneStyle: { backgroundColor: colors.bg },
       }}
     >
       <Tabs.Screen
         name="index"
         options={{
-          title: 'Challenges',
+          title: 'Today',
           tabBarIcon: ({ color, focused }) => (
-            <TabIcon name={focused ? 'flame' : 'flame-outline'} color={color} focused={focused} />
+            <TabIcon name={focused ? 'today' : 'today-outline'} color={color} focused={focused} />
           ),
         }}
       />
       <Tabs.Screen
-        name="discover"
+        name="challenges"
         options={{
-          title: 'Discover',
+          title: 'Challenges',
           tabBarIcon: ({ color, focused }) => (
-            <TabIcon name={focused ? 'compass' : 'compass-outline'} color={color} focused={focused} />
+            <TabIcon name={focused ? 'flag' : 'flag-outline'} color={color} focused={focused} />
           ),
         }}
       />
@@ -94,23 +85,19 @@ export default function TabsLayout() {
 
 const styles = StyleSheet.create({
   bar: {
-    backgroundColor: colors.bgSoft,
-    borderTopColor: colors.border,
+    backgroundColor: colors.bg,
+    borderTopColor: colors.line,
     borderTopWidth: 1,
-    paddingTop: 4,
+    paddingTop: 2,
   },
   label: {
-    fontFamily: 'Inter_600SemiBold',
-    fontSize: 10.5,
-    letterSpacing: 0.2,
+    fontFamily: fonts.bodySemi,
+    fontSize: 9,
+    lineHeight: 12,
+    letterSpacing: 0.9,
+    textTransform: 'uppercase',
     marginTop: 2,
   },
-  icon: {
-    width: 46,
-    height: 26,
-    borderRadius: radius.pill,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  iconActive: { backgroundColor: colors.primaryDim },
+  icon: { alignItems: 'center', gap: 4 },
+  marker: { width: 14, height: 2, backgroundColor: 'transparent' },
 });
