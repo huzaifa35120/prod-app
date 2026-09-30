@@ -314,7 +314,9 @@ export async function logFocusSession(
       challenge_id: challengeId,
       day_id: dayId,
       user_id: userId,
-      seconds: Math.round(seconds),
+      // focus_sessions has check (seconds > 0 and seconds <= 86400); clamp so
+      // a timer left running for days cannot fail the insert outright.
+      seconds: Math.min(86_400, Math.max(1, Math.round(seconds))),
       note: note?.trim() || null,
     })
     .select('*')

@@ -253,29 +253,37 @@ There are two separate things here, and they have very different requirements.
 
 ### The productivity timer in the notification shade
 
-While a timer is running the app posts an **ongoing notification** with
-**Pause / Resume / Stop** buttons. Pressing one changes the same stored timer
-the app reads, so the screen and the shade can never disagree.
+While a timer runs the app posts an **ongoing notification** showing the live
+elapsed count, with **Pause / Resume / Log it / Discard**. Log it banks the time
+as a focus session without opening a screen.
 
-Two deliberate choices:
+Android has no notification chronometer reachable from `expo-notifications`, so
+the number is redrawn from JS once a second while the app's process is alive.
+If Android freezes the process the count pauses on screen — pressing any button
+brings the app up and the figure corrects itself, because elapsed time is
+derived from timestamps rather than counted ticks.
 
-- It shows **when the run started** ("Running since 14:32") rather than a count
-  of elapsed seconds. Android only redraws a notification when the app replaces
-  it, so an elapsed figure would quietly go stale while the shade sat untouched;
-  a start time stays true no matter how long it sits there.
-- The buttons **bring the app to the front**. The timer is timestamp-based, so
-  a pause that arrived late would over-count. Opening the app guarantees the
-  change is applied at the moment you pressed it.
+The buttons **bring the app to the front**. The timer is timestamp-based, so an
+action applied late would over-count; opening the app guarantees it lands at the
+moment it was pressed.
 
-A live per-second counter in the shade needs Android's notification
-*chronometer*, which `expo-notifications` does not expose. Reaching it means a
-third-party native module; the one that does this (`notifee`) has not been
-published since December 2024 and predates the New Architecture this app runs
-on, so it was not worth the risk.
+Three things make the controls reliable, and each fixed a real bug:
 
-**iOS shows no timer notification.** A live-updating one there requires Live
-Activities (ActivityKit), which is a native widget extension in Swift. The app
-is Android-only today, so this is not a practical limitation.
+- **Storage is the single source of truth.** An earlier version persisted on
+  every React state change, so a value read during the foreground transition
+  could overwrite a change the notification had just made — which is why
+  repeated Pause presses appeared to do nothing.
+- **Every mutation is serialised.** Two quick presses otherwise interleave
+  their read-modify-write and one silently wins.
+- **Responses are de-duplicated.** A press that cold-starts the app arrives
+  through both `getLastNotificationResponseAsync` and the listener; without a
+  marker it applied twice, which would double-log.
+
+`node scripts/test-timer.mjs` runs these as tests against the real source.
+
+**iOS shows no timer notification.** A live-updating one there needs Live
+Activities (ActivityKit), a native widget extension in Swift. The app is
+Android-only today.
 
 ### Push when your opponent ticks a task
 

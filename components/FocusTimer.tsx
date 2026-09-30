@@ -32,6 +32,7 @@ export function FocusTimer({
   rivalName,
   challengeId,
   challengeTitle,
+  dayId,
   dayNumber,
   onLog,
 }: {
@@ -43,12 +44,13 @@ export function FocusTimer({
   /** Context for the ongoing notification's title and deep link. */
   challengeId: string;
   challengeTitle: string;
+  dayId: string;
   dayNumber: number;
   onLog: (seconds: number) => Promise<void>;
 }) {
   const { elapsed, running, hydrated, start, pause, reset, addSeconds } = useStopwatch(
     storageKey,
-    { challengeId, challengeTitle, dayNumber }
+    { challengeId, challengeTitle, dayId, dayNumber }
   );
   const [saving, setSaving] = useState(false);
 

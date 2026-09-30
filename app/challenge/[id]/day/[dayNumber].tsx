@@ -353,6 +353,7 @@ export default function DayScreen() {
                 rivalName={challenge.opponent_id ? displayNameOf(opponentProfile) : undefined}
                 challengeId={challenge.id}
                 challengeTitle={challenge.title}
+                dayId={day.id}
                 dayNumber={day.day_number}
                 onLog={onLogTime}
               />

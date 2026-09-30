@@ -14,6 +14,8 @@ export const IDLE: TimerState = { running: false, startedAt: null, accumulated: 
 export interface ActiveTimer {
   storageKey: string;
   challengeId: string;
+  /** Needed so "Log it" can write a focus session straight from the shade. */
+  dayId: string;
   challengeTitle: string;
   dayNumber: number;
 }
@@ -26,7 +28,10 @@ const ACTIVE_KEY = 'timer:active';
  * dropped interval can never lose seconds.
  */
 export function elapsedOf(s: TimerState, now = Date.now()): number {
-  return Math.floor(s.accumulated + (s.running && s.startedAt ? (now - s.startedAt) / 1000 : 0));
+  // A device clock that jumps backwards (timezone change, NTP correction)
+  // would otherwise make the run negative and the timer count down.
+  const run = s.running && s.startedAt ? Math.max(0, (now - s.startedAt) / 1000) : 0;
+  return Math.max(0, Math.floor(s.accumulated + run));
 }
 
 export function startOf(s: TimerState): TimerState {
@@ -38,7 +43,7 @@ export function pauseOf(s: TimerState): TimerState {
   return {
     running: false,
     startedAt: null,
-    accumulated: s.accumulated + (Date.now() - s.startedAt) / 1000,
+    accumulated: s.accumulated + Math.max(0, (Date.now() - s.startedAt) / 1000),
   };
 }
 
@@ -68,16 +73,34 @@ export async function writeTimer(key: string, s: TimerState): Promise<void> {
 }
 
 /**
- * Read-modify-write. Used by the notification's action handler, which runs in
- * a headless task with no React state to go through.
+ * Serialises every read-modify-write against storage.
+ *
+ * Two of these can otherwise overlap — a notification action and the screen
+ * both mutate the same entry — and the slower read would overwrite the faster
+ * write. That is what made repeated Pause/Resume presses appear to do nothing.
  */
-export async function mutateTimer(
+let chain: Promise<unknown> = Promise.resolve();
+
+export function serialise<T>(work: () => Promise<T>): Promise<T> {
+  const run = chain.then(work, work);
+  // Keep the chain alive even if this link rejects.
+  chain = run.then(
+    () => undefined,
+    () => undefined
+  );
+  return run;
+}
+
+/** Read-modify-write, serialised against every other mutation. */
+export function mutateTimer(
   key: string,
   fn: (s: TimerState) => TimerState
 ): Promise<TimerState> {
-  const next = fn(await readTimer(key));
-  await writeTimer(key, next);
-  return next;
+  return serialise(async () => {
+    const next = fn(await readTimer(key));
+    await writeTimer(key, next);
+    return next;
+  });
 }
 
 /* ---------------- which timer the notification owns ---------------- */
