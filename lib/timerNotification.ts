@@ -1,17 +1,16 @@
-import { Platform } from 'react-native';
-import * as Notifications from 'expo-notifications';
 import {
   elapsedOf, getActiveTimer, mutateTimer, pauseOf, readTimer, setActiveTimer, startOf,
   type ActiveTimer, type TimerState,
 } from './timerState';
 import { formatDuration } from './format';
-import { TIMER_CHANNEL } from './notifications';
+import { notifications, NOTIFICATIONS_SUPPORTED, TIMER_CHANNEL } from './notifications';
+import { Platform } from 'react-native';
 
 const NOTIFICATION_ID = 'focus-timer';
 
-// expo-notifications has no web implementation — several of its methods throw
-// outright there. The timer still works; it just has no shade to live in.
-const SUPPORTED = Platform.OS !== 'web';
+// Expo Go (SDK 53+) and web cannot load the native module at all. The timer
+// still works there; it just has no shade to live in.
+const SUPPORTED = NOTIFICATIONS_SUPPORTED;
 
 /**
  * Button titles are baked into a category, so running and paused need one
@@ -38,14 +37,15 @@ export function onTimerChangedExternally(fn: Listener): () => void {
 let categoriesReady = false;
 
 async function ensureCategories(): Promise<void> {
-  if (!SUPPORTED || categoriesReady) return;
+  const N = notifications();
+  if (!N || categoriesReady) return;
   // opensAppToForeground: the app must be alive to apply the change correctly,
   // and the timer is timestamp-based, so a late pause would over-count.
-  await Notifications.setNotificationCategoryAsync(CATEGORY_RUNNING, [
+  await N.setNotificationCategoryAsync(CATEGORY_RUNNING, [
     { identifier: TIMER_ACTIONS.pause, buttonTitle: 'Pause', options: { opensAppToForeground: true } },
     { identifier: TIMER_ACTIONS.stop, buttonTitle: 'Stop', options: { opensAppToForeground: true } },
   ]);
-  await Notifications.setNotificationCategoryAsync(CATEGORY_PAUSED, [
+  await N.setNotificationCategoryAsync(CATEGORY_PAUSED, [
     { identifier: TIMER_ACTIONS.resume, buttonTitle: 'Resume', options: { opensAppToForeground: true } },
     { identifier: TIMER_ACTIONS.stop, buttonTitle: 'Stop', options: { opensAppToForeground: true } },
   ]);
@@ -69,7 +69,8 @@ export async function showTimerNotification(
   meta: ActiveTimer,
   state: TimerState
 ): Promise<void> {
-  if (!SUPPORTED) return;
+  const N = notifications();
+  if (!N) return;
   await ensureCategories();
   await setActiveTimer(meta);
 
@@ -77,7 +78,7 @@ export async function showTimerNotification(
   const elapsed = elapsedOf(state);
 
   try {
-    await Notifications.scheduleNotificationAsync({
+    await N.scheduleNotificationAsync({
       identifier: NOTIFICATION_ID,
       content: {
         title: state.running ? 'Recording focused time' : 'Timer paused',
@@ -99,11 +100,12 @@ export async function showTimerNotification(
 }
 
 export async function clearTimerNotification(): Promise<void> {
-  if (!SUPPORTED) return;
+  const N = notifications();
+  if (!N) return;
   await setActiveTimer(null);
   try {
-    await Notifications.dismissNotificationAsync(NOTIFICATION_ID);
-    await Notifications.cancelScheduledNotificationAsync(NOTIFICATION_ID);
+    await N.dismissNotificationAsync(NOTIFICATION_ID);
+    await N.cancelScheduledNotificationAsync(NOTIFICATION_ID);
   } catch {
     /* already gone */
   }
@@ -135,15 +137,16 @@ function isTimerAction(id: string | undefined): id is string {
 
 /** Registered once from the app root. */
 export function registerTimerNotificationHandlers(): () => void {
-  if (!SUPPORTED) return () => {};
+  const N = notifications();
+  if (!N) return () => {};
 
   // A press from a cold start arrives here rather than through the listener.
-  void Notifications.getLastNotificationResponseAsync().then((response) => {
+  void N.getLastNotificationResponseAsync().then((response) => {
     const id = response?.actionIdentifier;
     if (isTimerAction(id)) void applyAction(id);
   });
 
-  const sub = Notifications.addNotificationResponseReceivedListener((response) => {
+  const sub = N.addNotificationResponseReceivedListener((response) => {
     const id = response.actionIdentifier;
     if (isTimerAction(id)) void applyAction(id);
   });

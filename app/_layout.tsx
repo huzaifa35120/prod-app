@@ -16,9 +16,9 @@ import { Inter_400Regular } from '@expo-google-fonts/inter/400Regular';
 import { Inter_500Medium } from '@expo-google-fonts/inter/500Medium';
 import { Inter_600SemiBold } from '@expo-google-fonts/inter/600SemiBold';
 import { Inter_700Bold } from '@expo-google-fonts/inter/700Bold';
-import * as Notifications from 'expo-notifications';
 import { AuthProvider, useAuth } from '../lib/auth';
 import { usePushRegistration } from '../lib/usePushRegistration';
+import { addNotificationTapListener } from '../lib/notifications';
 import { registerTimerNotificationHandlers } from '../lib/timerNotification';
 import { isSupabaseConfigured } from '../lib/supabase';
 import { colors, fonts } from '../lib/theme';
@@ -41,20 +41,18 @@ function RootNavigator() {
   usePushRegistration(session?.user?.id ?? null);
 
   // Tapping a push about the opponent opens the day it refers to.
-  useEffect(() => {
-    const sub = Notifications.addNotificationResponseReceivedListener((response) => {
-      const data = response.notification.request.content.data as
-        | { challengeId?: string; dayNumber?: number | string }
-        | undefined;
-      if (!data?.challengeId) return;
-      router.push(
-        data.dayNumber != null
-          ? `/challenge/${data.challengeId}/day/${data.dayNumber}`
-          : `/challenge/${data.challengeId}`
-      );
-    });
-    return () => sub.remove();
-  }, [router]);
+  useEffect(
+    () =>
+      addNotificationTapListener((data) => {
+        if (!data.challengeId) return;
+        router.push(
+          data.dayNumber != null
+            ? `/challenge/${data.challengeId}/day/${data.dayNumber}`
+            : `/challenge/${data.challengeId}`
+        );
+      }),
+    [router]
+  );
 
   useEffect(() => {
     if (initializing) return;
