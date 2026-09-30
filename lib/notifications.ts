@@ -6,8 +6,6 @@ import type * as NotificationsModule from 'expo-notifications';
 
 /** Android channel for opponent activity (ticks, finished days). */
 export const EVENTS_CHANNEL = 'challenge-events';
-/** Android channel for the ongoing timer. Silent — it must not buzz every tick. */
-export const TIMER_CHANNEL = 'focus-timer';
 
 /**
  * Whether expo-notifications can be touched at all.
@@ -58,14 +56,6 @@ export async function ensureChannels(): Promise<void> {
     lightColor: '#7C93FF',
   });
 
-  await N.setNotificationChannelAsync(TIMER_CHANNEL, {
-    name: 'Productivity timer',
-    description: 'The running timer, so you can pause or stop it from the shade.',
-    importance: N.AndroidImportance.LOW,
-    vibrationPattern: [0],
-    enableVibrate: false,
-    showBadge: false,
-  });
 }
 
 /** Asks once. Returns whether we may post notifications. */

@@ -1,22 +1,18 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Platform } from 'react-native';
+import notifee, { AndroidImportance, EventType, type Event } from '@notifee/react-native';
 import {
   elapsedOf, getActiveTimer, IDLE, mutateTimer, pauseOf, readTimer, serialise,
   setActiveTimer, startOf, writeTimer,
   type ActiveTimer, type TimerState,
 } from './timerState';
 import { formatClock } from './format';
-import {
-  ensureChannels, notifications, NOTIFICATIONS_SUPPORTED, TIMER_CHANNEL,
-} from './notifications';
 import { supabase } from './supabase';
 import { logFocusSession } from './api';
 
 const NOTIFICATION_ID = 'focus-timer';
-const HANDLED_KEY = 'timer:lastHandledAction';
+const CHANNEL_ID = 'focus-timer';
 
-/** Button titles are baked into a category, so each state needs its own. */
-const CATEGORY_RUNNING = 'focus-timer-running';
-const CATEGORY_PAUSED = 'focus-timer-paused';
+const SUPPORTED = Platform.OS === 'android';
 
 export const TIMER_ACTIONS = {
   pause: 'timer-pause',
@@ -28,7 +24,6 @@ export const TIMER_ACTIONS = {
 type Listener = (key: string, state: TimerState) => void;
 const listeners = new Set<Listener>();
 
-/** Lets a mounted screen adopt a change made from the notification. */
 export function onTimerChangedExternally(fn: Listener): () => void {
   listeners.add(fn);
   return () => listeners.delete(fn);
@@ -45,157 +40,116 @@ function announce(key: string, state: TimerState) {
 }
 
 /* ------------------------------------------------------------------ */
-/*  Rendering                                                          */
+/*  Drawing                                                            */
 /* ------------------------------------------------------------------ */
 
-let categoriesReady = false;
+let channelReady = false;
 
-async function ensureCategories(): Promise<void> {
-  const N = notifications();
-  if (!N || categoriesReady) return;
-
-  // The timer can be shown before usePushRegistration has run, so the silent
-  // channel has to be created here too or Android falls back to a noisy one.
-  await ensureChannels();
-
-  // opensAppToForeground: the timer is timestamp-based, so an action applied
-  // late would over-count. Bringing the app up guarantees it lands now.
-  const opts = { opensAppToForeground: true };
-  await N.setNotificationCategoryAsync(CATEGORY_RUNNING, [
-    { identifier: TIMER_ACTIONS.pause, buttonTitle: 'Pause', options: opts },
-    { identifier: TIMER_ACTIONS.log, buttonTitle: 'Log it', options: opts },
-    { identifier: TIMER_ACTIONS.stop, buttonTitle: 'Discard', options: opts },
-  ]);
-  await N.setNotificationCategoryAsync(CATEGORY_PAUSED, [
-    { identifier: TIMER_ACTIONS.resume, buttonTitle: 'Resume', options: opts },
-    { identifier: TIMER_ACTIONS.log, buttonTitle: 'Log it', options: opts },
-    { identifier: TIMER_ACTIONS.stop, buttonTitle: 'Discard', options: opts },
-  ]);
-  categoriesReady = true;
+async function ensureChannel(): Promise<void> {
+  if (channelReady) return;
+  await notifee.createChannel({
+    id: CHANNEL_ID,
+    name: 'Productivity timer',
+    description: 'The running timer, so you can control it from the shade.',
+    // LOW keeps it in the shade without a heads-up banner or sound.
+    importance: AndroidImportance.LOW,
+    vibration: false,
+  });
+  channelReady = true;
 }
 
-/** Draws the notification. Never throws. */
-async function render(meta: ActiveTimer, state: TimerState): Promise<void> {
-  const N = notifications();
-  if (!N) return;
-
-  try {
-    await ensureCategories();
-    await N.scheduleNotificationAsync({
-      identifier: NOTIFICATION_ID,
-      content: {
-        // The elapsed clock is the headline — Android has no chronometer we
-        // can reach from here, so the number is redrawn by the ticker below.
-        title: formatClock(elapsedOf(state)),
-        body: `${state.running ? 'Recording' : 'Paused'} · ${meta.challengeTitle} · Day ${meta.dayNumber}`,
-        categoryIdentifier: state.running ? CATEGORY_RUNNING : CATEGORY_PAUSED,
-        data: { challengeId: meta.challengeId, dayNumber: meta.dayNumber, timer: true },
-        sticky: state.running,
-        autoDismiss: false,
-        sound: false,
-        ...(TIMER_CHANNEL ? { channelId: TIMER_CHANNEL } : {}),
-      },
-      trigger: null,
-    });
-  } catch {
-    // The timer itself must keep working even if the shade will not.
-  }
-}
-
-/* ------------------------------------------------------------------ */
-/*  The ticker that keeps the number moving                            */
-/* ------------------------------------------------------------------ */
-
-let ticker: ReturnType<typeof setInterval> | null = null;
-let ticking = false;
-
-function stopTicker() {
-  if (ticker) {
-    clearInterval(ticker);
-    ticker = null;
-  }
-}
-
-function startTicker() {
-  stopTicker();
-  ticker = setInterval(() => {
-    if (ticking) return; // a slow redraw must not queue more work behind it
-    ticking = true;
-    void (async () => {
-      try {
-        const meta = await getActiveTimer();
-        if (!meta) return stopTicker();
-        const state = await readTimer(meta.storageKey);
-        if (!state.running) return stopTicker();
-        await render(meta, state);
-      } catch {
-        stopTicker();
-      } finally {
-        ticking = false;
-      }
-    })();
-  }, 1000);
-}
-
-/* ------------------------------------------------------------------ */
-/*  Public API                                                         */
-/* ------------------------------------------------------------------ */
-
+/**
+ * Shows (or updates) the ongoing timer notification.
+ *
+ * The elapsed count is drawn by **Android's own chronometer**: we hand it the
+ * instant the run effectively started and the OS ticks the display itself.
+ * Nothing in JS redraws it.
+ *
+ * That matters for three reasons the previous JS-redraw approach got wrong:
+ *   - it does not re-alert, because we are not re-posting once a second;
+ *   - it keeps counting when the app is backgrounded or killed, because no
+ *     JavaScript is involved in the ticking;
+ *   - it costs nothing in battery.
+ */
 export async function showTimerNotification(
   meta: ActiveTimer,
   state: TimerState
 ): Promise<void> {
-  if (!NOTIFICATIONS_SUPPORTED) return;
+  if (!SUPPORTED) return;
+
   try {
+    await ensureChannel();
     await setActiveTimer(meta);
-    await render(meta, state);
-    if (state.running) startTicker();
-    else stopTicker();
+
+    const elapsedMs = elapsedOf(state) * 1000;
+    const actions = state.running
+      ? [
+          { title: 'Pause', pressAction: { id: TIMER_ACTIONS.pause } },
+          { title: 'Log it', pressAction: { id: TIMER_ACTIONS.log } },
+        ]
+      : [
+          { title: 'Resume', pressAction: { id: TIMER_ACTIONS.resume } },
+          { title: 'Log it', pressAction: { id: TIMER_ACTIONS.log } },
+          { title: 'Discard', pressAction: { id: TIMER_ACTIONS.stop } },
+        ];
+
+    await notifee.displayNotification({
+      id: NOTIFICATION_ID,
+      // Running: Android's chronometer draws the live count in the time slot.
+      // Paused: the chronometer is off, so the banked figure goes in the title
+      // or the notification would show no number at all.
+      title: state.running
+        ? 'Recording focused time'
+        : `${formatClock(elapsedOf(state))} banked`,
+      body: `${meta.challengeTitle} · Day ${meta.dayNumber}`,
+      data: { challengeId: meta.challengeId, dayNumber: String(meta.dayNumber) },
+      android: {
+        channelId: CHANNEL_ID,
+        smallIcon: 'notification_icon',
+        color: '#CCFF00',
+        ongoing: state.running,
+        autoCancel: false,
+        // Without this every update re-alerts — the bug that made a
+        // notification appear once a second.
+        onlyAlertOnce: true,
+        // Android renders the count from this instant onward.
+        showChronometer: state.running,
+        chronometerDirection: 'up',
+        timestamp: Date.now() - elapsedMs,
+        showTimestamp: state.running,
+        actions,
+        pressAction: { id: 'default', launchActivity: 'default' },
+      },
+    });
   } catch {
-    /* never throw at a caller */
+    // The timer must keep working even if the shade will not cooperate.
   }
 }
 
-/**
- * Clears the shade.
- *
- * `onlyForKey` guards against a screen for a different day wiping a
- * notification that does not belong to it — opening an idle day used to
- * cancel a timer still running on another one.
- */
 export async function clearTimerNotification(onlyForKey?: string): Promise<void> {
-  if (!NOTIFICATIONS_SUPPORTED) return;
-  if (onlyForKey) {
-    const active = await getActiveTimer();
-    if (active && active.storageKey !== onlyForKey) return;
-  }
-  stopTicker();
+  if (!SUPPORTED) return;
   try {
+    if (onlyForKey) {
+      const active = await getActiveTimer();
+      // A screen for a different day must not cancel someone else's timer.
+      if (active && active.storageKey !== onlyForKey) return;
+    }
     await setActiveTimer(null);
+    await notifee.cancelNotification(NOTIFICATION_ID);
   } catch {
-    /* ignore */
-  }
-  const N = notifications();
-  if (!N) return;
-  try {
-    await N.dismissNotificationAsync(NOTIFICATION_ID);
-  } catch {
-    /* not presented */
+    /* already gone */
   }
 }
 
 /* ------------------------------------------------------------------ */
-/*  Actions                                                            */
+/*  Actions — handled in place, without opening the app                */
 /* ------------------------------------------------------------------ */
 
-/** Banks the running time as a focus session, straight from the shade. */
 async function logFromNotification(meta: ActiveTimer, state: TimerState): Promise<void> {
-  const paused = pauseOf(state);
-  const seconds = elapsedOf(paused);
+  const seconds = elapsedOf(pauseOf(state));
   if (seconds < 1) return;
 
-  // A press that cold-started the app can arrive before supabase-js has read
-  // the stored session, so give it a moment rather than failing outright.
+  // A headless task may run before supabase-js has read the stored session.
   let uid: string | undefined;
   for (let attempt = 0; attempt < 5 && !uid; attempt++) {
     const { data } = await supabase.auth.getSession();
@@ -211,14 +165,6 @@ async function logFromNotification(meta: ActiveTimer, state: TimerState): Promis
   await clearTimerNotification();
 }
 
-/**
- * Applies a pressed action.
- *
- * Every press is queued behind the previous one. Without that, two quick
- * presses interleave their read-modify-write against the same storage entry
- * and one silently wins — which is why pressing Pause repeatedly looked like
- * it did nothing.
- */
 async function applyAction(actionId: string): Promise<void> {
   const meta = await getActiveTimer();
   if (!meta) return;
@@ -227,7 +173,7 @@ async function applyAction(actionId: string): Promise<void> {
     try {
       await logFromNotification(meta, await readTimer(meta.storageKey));
     } catch {
-      // Offline or signed out: fall back to pausing so nothing is lost.
+      // Offline or signed out: pause instead so the time is never lost.
       const next = await mutateTimer(meta.storageKey, pauseOf);
       announce(meta.storageKey, next);
       await showTimerNotification(meta, next);
@@ -255,66 +201,33 @@ function isTimerAction(id: string | undefined): id is string {
 }
 
 /**
- * Cold starts deliver the launching press through
- * getLastNotificationResponseAsync, which keeps returning the same response
- * on every later launch. Without a marker the app re-applies a stale action
- * each time it opens.
+ * Shared by the foreground and the headless background handler.
+ *
+ * Presses are serialised, so hammering Pause cannot interleave two
+ * read-modify-writes against the same stored timer.
  */
-async function alreadyHandled(key: string): Promise<boolean> {
-  try {
-    const seen = await AsyncStorage.getItem(HANDLED_KEY);
-    if (seen === key) return true;
-    await AsyncStorage.setItem(HANDLED_KEY, key);
-    return false;
-  } catch {
-    return false;
-  }
-}
+export async function handleTimerEvent({ type, detail }: Event): Promise<void> {
+  if (type !== EventType.ACTION_PRESS) return;
+  const id = detail.pressAction?.id;
+  if (!isTimerAction(id)) return;
 
-/** Registered once from the app root. */
-export function registerTimerNotificationHandlers(): () => void {
-  const N = notifications();
-  if (!N) return () => {};
-
-  const handle = (actionId: string | undefined, key: string) => {
-    if (!isTimerAction(actionId)) return;
-    void serialise(async () => {
-      try {
-        if (await alreadyHandled(key)) return;
-        await applyAction(actionId);
-      } catch {
-        // An action that fails must not surface as a crash.
-      }
-    });
-  };
-
-  // The same press can arrive twice — once through the cold-start lookup and
-  // once through the listener. Both derive the SAME key, so the second is
-  // dropped. Keying on the notification's delivery date works because each
-  // action redraws the notification.
-  const keyOf = (response: {
-    actionIdentifier: string;
-    notification: { date: number; request: { identifier: string } };
-  }) =>
-    `${response.notification.request.identifier}:${response.actionIdentifier}:${response.notification.date}`;
-
-  void N.getLastNotificationResponseAsync()
-    .then((response) => {
-      if (response) handle(response.actionIdentifier, keyOf(response));
-    })
-    .catch(() => {});
-
-  const sub = N.addNotificationResponseReceivedListener((response) => {
-    handle(response.actionIdentifier, keyOf(response));
+  await serialise(async () => {
+    try {
+      await applyAction(id);
+    } catch {
+      // An action that fails must never surface as a crash.
+    }
   });
-
-  return () => {
-    stopTicker();
-    sub.remove();
-  };
 }
 
-/** Re-reads storage for whichever timer the notification is showing. */
+/** Foreground registration. The background half lives in index.js. */
+export function registerTimerNotificationHandlers(): () => void {
+  if (!SUPPORTED) return () => {};
+  return notifee.onForegroundEvent((event) => {
+    void handleTimerEvent(event);
+  });
+}
+
 export async function readActiveTimerState(): Promise<
   { meta: ActiveTimer; state: TimerState } | null
 > {

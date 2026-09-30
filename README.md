@@ -253,33 +253,37 @@ There are two separate things here, and they have very different requirements.
 
 ### The productivity timer in the notification shade
 
-While a timer runs the app posts an **ongoing notification** showing the live
-elapsed count, with **Pause / Resume / Log it / Discard**. Log it banks the time
-as a focus session without opening a screen.
+A running timer appears as an ongoing notification whose **elapsed count is
+drawn by Android's own chronometer**. No JavaScript is involved in the ticking,
+which is what makes it keep counting while the app is backgrounded or killed,
+and why it costs nothing in battery. Pause / Resume / Log it / Discard are
+handled by a headless task, so pressing one does not open the app.
 
-Android has no notification chronometer reachable from `expo-notifications`, so
-the number is redrawn from JS once a second while the app's process is alive.
-If Android freezes the process the count pauses on screen — pressing any button
-brings the app up and the figure corrects itself, because elapsed time is
-derived from timestamps rather than counted ticks.
+This needs `@notifee/react-native`. `expo-notifications` cannot do it: it
+exposes neither `usesChronometer` nor `onlyAlertOnce`. An earlier attempt
+redrew the notification from JS once a second, which produced three bugs at
+once — a fresh alert every second (no `onlyAlertOnce`), a count that froze the
+moment the app was backgrounded (Android suspends JS timers), and button
+handling tangled up with the redraw loop.
 
-The buttons **bring the app to the front**. The timer is timestamp-based, so an
-action applied late would over-count; opening the app guarantees it lands at the
-moment it was pressed.
+Notifee is flagged "unmaintained" by React Native Directory and is excluded
+from that check in package.json. It is the only library that reaches the
+platform chronometer, and the build links it — `autolinking.json` lists it and
+the compiled APK carries its classes.
 
-Three things make the controls reliable, and each fixed a real bug:
+Two further things keep the controls reliable, both covered by
+`node scripts/test-timer.mjs`:
 
 - **Storage is the single source of truth.** An earlier version persisted on
   every React state change, so a value read during the foreground transition
   could overwrite a change the notification had just made — which is why
   repeated Pause presses appeared to do nothing.
-- **Every mutation is serialised.** Two quick presses otherwise interleave
-  their read-modify-write and one silently wins.
-- **Responses are de-duplicated.** A press that cold-starts the app arrives
-  through both `getLastNotificationResponseAsync` and the listener; without a
-  marker it applied twice, which would double-log.
+- **Every mutation is serialised**, so two quick presses cannot interleave
+  their read-modify-write against the same stored timer.
 
-`node scripts/test-timer.mjs` runs these as tests against the real source.
+The background handler is registered in [`index.js`](index.js), at the top of
+the entry file, because Android starts it as a headless task before the app
+exists.
 
 **iOS shows no timer notification.** A live-updating one there needs Live
 Activities (ActivityKit), a native widget extension in Swift. The app is
